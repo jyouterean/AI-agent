@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model clients {
+  id           String     @id
+  name         String     @db.VarChar(200)
+  email        String?    @db.VarChar(255)
+  address      String?
+  invoiceRegNo String?    @db.VarChar(50)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime
+  invoices     invoices[]
+
+  @@index([name])
+}
+
+model invoice_items {
+  id           String   @id
+  invoiceId    String
+  description  String   @db.VarChar(200)
+  quantity     Int
+  unitPriceYen Int
+  amountYen    Int
+  taxRate      Float
+  createdAt    DateTime @default(now())
+  invoices     invoices @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+model invoices {
+  id            String          @id
+  clientId      String
+  issueDate     DateTime
+  dueDate       DateTime
+  status        String          @db.VarChar(20)
+  subtotalYen   Int
+  taxYen        Int
+  totalYen      Int
+  notes         String?
+  bankAccount   String?         @db.VarChar(200)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  invoice_items invoice_items[]
+  clients       clients         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId])
+  @@index([issueDate])
+  @@index([status])
+}
+
+model transactions {
+  id              String   @id
+  type            String   @db.VarChar(20)
+  date            DateTime
+  accountCategory String   @db.VarChar(100)
+  partnerName     String   @db.VarChar(200)
+  amountYen       Int
+  memo            String?
+  attachmentUrl   String?  @db.VarChar(500)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime
+
+  @@index([date])
+  @@index([type])
+}
