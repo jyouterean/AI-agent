@@ -1,7 +1,0 @@
-{
-  "buildCommand": "cd \"Zentry合同会社\" && npm run build",
-  "installCommand": "cd \"Zentry合同会社\" && npm install",
-  "framework": "nextjs",
-  "regions": ["hnd1"]
-}
-
