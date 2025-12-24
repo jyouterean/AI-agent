@@ -21,18 +21,18 @@ export async function PATCH(
     if (updateData.quantity !== undefined && updateData.unitPriceYen !== undefined) {
       updateData.amountYen = updateData.quantity * updateData.unitPriceYen
     } else if (updateData.quantity !== undefined) {
-      const item = await prisma.invoiceItem.findUnique({ where: { id: params.itemId } })
+      const item = await prisma.invoice_items.findUnique({ where: { id: params.itemId } })
       if (item) {
         updateData.amountYen = updateData.quantity * item.unitPriceYen
       }
     } else if (updateData.unitPriceYen !== undefined) {
-      const item = await prisma.invoiceItem.findUnique({ where: { id: params.itemId } })
+      const item = await prisma.invoice_items.findUnique({ where: { id: params.itemId } })
       if (item) {
         updateData.amountYen = item.quantity * updateData.unitPriceYen
       }
     }
 
-    const item = await prisma.invoiceItem.update({
+    const item = await prisma.invoice_items.update({
       where: { id: params.itemId },
       data: updateData,
     })
@@ -40,7 +40,7 @@ export async function PATCH(
     // 請求書の合計を再計算
     const invoice = await prisma.invoice.findUnique({
       where: { id: params.id },
-      include: { items: true },
+      include: { invoice_items: true },
     })
 
     if (invoice) {
@@ -54,7 +54,7 @@ export async function PATCH(
         taxYen += itemTax
       }
 
-      await prisma.invoice.update({
+      await prisma.invoices.update({
         where: { id: params.id },
         data: {
           subtotalYen,
@@ -82,14 +82,14 @@ export async function DELETE(
   { params }: { params: { id: string; itemId: string } }
 ) {
   try {
-    await prisma.invoiceItem.delete({
+    await prisma.invoice_items.delete({
       where: { id: params.itemId },
     })
 
     // 請求書の合計を再計算
     const invoice = await prisma.invoice.findUnique({
       where: { id: params.id },
-      include: { items: true },
+      include: { invoice_items: true },
     })
 
     if (invoice) {
@@ -103,7 +103,7 @@ export async function DELETE(
         taxYen += itemTax
       }
 
-      await prisma.invoice.update({
+      await prisma.invoices.update({
         where: { id: params.id },
         data: {
           subtotalYen,

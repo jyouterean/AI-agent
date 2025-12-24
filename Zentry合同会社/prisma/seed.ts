@@ -7,7 +7,7 @@ async function main() {
   console.log('Seeding database...')
 
   // 顧客を作成
-  const client1 = await prisma.client.create({
+  const client1 = await prisma.clients.create({
     data: {
       name: 'A株式会社',
       email: 'contact@a-corp.jp',
@@ -16,7 +16,7 @@ async function main() {
     },
   })
 
-  const client2 = await prisma.client.create({
+  const client2 = await prisma.clients.create({
     data: {
       name: 'B商事',
       email: 'info@b-shoji.co.jp',
@@ -62,13 +62,13 @@ async function main() {
   ]
 
   for (const txn of transactions) {
-    await prisma.transaction.create({ data: txn })
+    await prisma.transactions.create({ data: txn })
   }
 
   console.log(`Created ${transactions.length} transactions`)
 
   // 請求書を作成
-  const invoice1 = await prisma.invoice.create({
+  const invoice1 = await prisma.invoices.create({
     data: {
       clientId: client1.id,
       issueDate: dayjs().subtract(10, 'day').toDate(),
@@ -82,7 +82,7 @@ async function main() {
     },
   })
 
-  await prisma.invoiceItem.create({
+  await prisma.invoice_items.create({
     data: {
       invoiceId: invoice1.id,
       description: '開発費',
@@ -93,7 +93,7 @@ async function main() {
     },
   })
 
-  const invoice2 = await prisma.invoice.create({
+  const invoice2 = await prisma.invoices.create({
     data: {
       clientId: client2.id,
       issueDate: dayjs().toDate(),

@@ -70,20 +70,20 @@ export async function POST(request: NextRequest) {
     const { messages, context } = await request.json()
 
     // コンテキスト情報を取得
-    const recentTransactions = await prisma.transaction.findMany({
+    const recentTransactions = await prisma.transactions.findMany({
       take: 10,
       orderBy: { date: 'desc' },
     })
 
-    const clients = await prisma.client.findMany({
+    const clients = await prisma.clients.findMany({
       take: 20,
       orderBy: { name: 'asc' },
     })
 
-    const recentInvoices = await prisma.invoice.findMany({
+    const recentInvoices = await prisma.invoices.findMany({
       take: 10,
       orderBy: { issueDate: 'desc' },
-      include: { client: true },
+      include: { clients: true },
     })
 
     const systemPrompt = `あなたは${companyInfo.name}の経理管理を支援するAIアシスタントです。

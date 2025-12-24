@@ -13,7 +13,7 @@ const invoiceSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const invoices = await prisma.invoice.findMany({
+    const invoices = await prisma.invoices.findMany({
       include: {
         client: true,
         items: true,
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     const data = invoiceSchema.parse(body)
 
     // 初期値で請求書を作成（明細は後で追加）
-    const invoice = await prisma.invoice.create({
+    const invoice = await prisma.invoices.create({
       data: {
         ...data,
         subtotalYen: 0,

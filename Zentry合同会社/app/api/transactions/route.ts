@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
       if (endDate) where.date.lte = new Date(endDate)
     }
 
-    const transactions = await prisma.transaction.findMany({
+    const transactions = await prisma.transactions.findMany({
       where,
       orderBy: { date: 'desc' },
     })
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const data = transactionSchema.parse(body)
 
-    const transaction = await prisma.transaction.create({
+    const transaction = await prisma.transactions.create({
       data: {
         ...data,
         attachmentUrl: data.attachmentUrl || undefined,

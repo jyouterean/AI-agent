@@ -8,11 +8,11 @@ export default async function InvoicePDFPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const invoice = await prisma.invoice.findUnique({
+  const invoice = await prisma.invoices.findUnique({
     where: { id },
     include: {
-      client: true,
-      items: true,
+      clients: true,
+      invoice_items: true,
     },
   })
 

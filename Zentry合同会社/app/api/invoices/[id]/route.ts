@@ -15,11 +15,11 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const invoice = await prisma.invoice.findUnique({
+    const invoice = await prisma.invoices.findUnique({
       where: { id: params.id },
       include: {
-        client: true,
-        items: true,
+        clients: true,
+        invoice_items: true,
       },
     })
 
@@ -42,12 +42,12 @@ export async function PATCH(
     const body = await request.json()
     const data = invoiceUpdateSchema.parse(body)
 
-    const invoice = await prisma.invoice.update({
+    const invoice = await prisma.invoices.update({
       where: { id: params.id },
       data,
       include: {
-        client: true,
-        items: true,
+        clients: true,
+        invoice_items: true,
       },
     })
 
@@ -69,7 +69,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    await prisma.invoice.delete({
+    await prisma.invoices.delete({
       where: { id: params.id },
     })
 

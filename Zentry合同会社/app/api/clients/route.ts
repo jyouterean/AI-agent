@@ -11,7 +11,7 @@ const clientSchema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    const clients = await prisma.client.findMany({
+    const clients = await prisma.clients.findMany({
       orderBy: { name: 'asc' },
     })
 
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const data = clientSchema.parse(body)
 
-    const client = await prisma.client.create({
+    const client = await prisma.clients.create({
       data: {
         ...data,
         email: data.email || undefined,

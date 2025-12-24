@@ -20,7 +20,7 @@ export async function POST(
     const amountYen = data.quantity * data.unitPriceYen
 
     // 明細を追加
-    const item = await prisma.invoiceItem.create({
+    const item = await prisma.invoice_items.create({
       data: {
         invoiceId: params.id,
         ...data,
@@ -30,9 +30,9 @@ export async function POST(
     })
 
     // 請求書の合計を再計算
-    const invoice = await prisma.invoice.findUnique({
+    const invoice = await prisma.invoices.findUnique({
       where: { id: params.id },
-      include: { items: true },
+      include: { invoice_items: true },
     })
 
     if (invoice) {
@@ -46,7 +46,7 @@ export async function POST(
         taxYen += itemTax
       }
 
-      await prisma.invoice.update({
+      await prisma.invoices.update({
         where: { id: params.id },
         data: {
           subtotalYen,

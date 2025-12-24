@@ -17,7 +17,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const transaction = await prisma.transaction.findUnique({
+    const transaction = await prisma.transactions.findUnique({
       where: { id: params.id },
     })
 
@@ -45,7 +45,7 @@ export async function PATCH(
       updateData.attachmentUrl = null
     }
 
-    const transaction = await prisma.transaction.update({
+    const transaction = await prisma.transactions.update({
       where: { id: params.id },
       data: updateData,
     })
@@ -68,7 +68,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    await prisma.transaction.delete({
+    await prisma.transactions.delete({
       where: { id: params.id },
     })
 

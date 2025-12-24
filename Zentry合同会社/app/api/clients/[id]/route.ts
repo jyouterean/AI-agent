@@ -14,7 +14,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const client = await prisma.client.findUnique({
+    const client = await prisma.clients.findUnique({
       where: { id: params.id },
       include: {
         invoices: {
@@ -48,7 +48,7 @@ export async function PATCH(
       updateData.email = null
     }
 
-    const client = await prisma.client.update({
+    const client = await prisma.clients.update({
       where: { id: params.id },
       data: updateData,
     })
@@ -71,7 +71,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    await prisma.client.delete({
+    await prisma.clients.delete({
       where: { id: params.id },
     })
 

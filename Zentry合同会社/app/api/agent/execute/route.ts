@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
         })
 
         const data = transactionSchema.parse(params)
-        const transaction = await prisma.transaction.create({ data })
+        const transaction = await prisma.transactions.create({ data })
 
         return NextResponse.json({ success: true, data: transaction })
       }
@@ -50,17 +50,17 @@ export async function POST(request: NextRequest) {
         const data = invoiceSchema.parse(params)
 
         // 顧客を検索または作成
-        let client = await prisma.client.findFirst({
+        let client = await prisma.clients.findFirst({
           where: { name: { contains: data.clientName } },
         })
 
         if (!client) {
-          client = await prisma.client.create({
+          client = await prisma.clients.create({
             data: { name: data.clientName },
           })
         }
 
-        const invoice = await prisma.invoice.create({
+        const invoice = await prisma.invoices.create({
           data: {
             clientId: client.id,
             issueDate: data.issueDate,
@@ -73,8 +73,8 @@ export async function POST(request: NextRequest) {
             bankAccount: data.bankAccount,
           },
           include: {
-            client: true,
-            items: true,
+            clients: true,
+            invoice_items: true,
           },
         })
 
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
         const data = itemSchema.parse(params)
         const amountYen = data.quantity * data.unitPriceYen
 
-        const item = await prisma.invoiceItem.create({
+        const item = await prisma.invoice_items.create({
           data: {
             invoiceId: data.invoiceId,
             description: data.description,
@@ -105,23 +105,23 @@ export async function POST(request: NextRequest) {
         })
 
         // 請求書の合計を再計算
-        const invoice = await prisma.invoice.findUnique({
+        const invoice = await prisma.invoices.findUnique({
           where: { id: data.invoiceId },
-          include: { items: true },
+          include: { invoice_items: true },
         })
 
         if (invoice) {
           let subtotalYen = 0
           let taxYen = 0
 
-          for (const item of invoice.items) {
+          for (const item of invoice.invoice_items) {
             const itemSubtotal = item.amountYen
             const itemTax = Math.floor(itemSubtotal * item.taxRate)
             subtotalYen += itemSubtotal
             taxYen += itemTax
           }
 
-          await prisma.invoice.update({
+          await prisma.invoices.update({
             where: { id: data.invoiceId },
             data: {
               subtotalYen,
@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
 
         const data = searchSchema.parse(params)
 
-        const clients = await prisma.client.findMany({
+        const clients = await prisma.clients.findMany({
           where: {
             name: {
               contains: data.name,
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
 
         const data = clientSchema.parse(params)
 
-        const client = await prisma.client.create({
+        const client = await prisma.clients.create({
           data: {
             name: data.name,
             email: data.email || undefined,
@@ -183,10 +183,10 @@ export async function POST(request: NextRequest) {
 
         const data = updateSchema.parse(params)
 
-        const invoice = await prisma.invoice.update({
+        const invoice = await prisma.invoices.update({
           where: { id: data.invoiceId },
           data: { status: data.status },
-          include: { client: true, items: true },
+          include: { clients: true, invoice_items: true },
         })
 
         return NextResponse.json({ success: true, data: invoice })
@@ -207,7 +207,7 @@ export async function POST(request: NextRequest) {
 
         const { id, ...updateFields } = data
 
-        const transaction = await prisma.transaction.update({
+        const transaction = await prisma.transactions.update({
           where: { id },
           data: updateFields,
         })

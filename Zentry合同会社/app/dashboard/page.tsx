@@ -14,7 +14,7 @@ export default async function DashboardPage() {
 
   try {
     // 今月の売上
-    const incomeTransactions = await prisma.transaction.findMany({
+    const incomeTransactions = await prisma.transactions.findMany({
       where: {
         type: 'income',
         date: {
@@ -26,7 +26,7 @@ export default async function DashboardPage() {
     incomeTotal = incomeTransactions.reduce((sum, t) => sum + t.amountYen, 0)
 
     // 今月の支出
-    const expenseTransactions = await prisma.transaction.findMany({
+    const expenseTransactions = await prisma.transactions.findMany({
       where: {
         type: 'expense',
         date: {
@@ -38,7 +38,7 @@ export default async function DashboardPage() {
     expenseTotal = expenseTransactions.reduce((sum, t) => sum + t.amountYen, 0)
 
     // 未回収額（送付済みだが未入金の請求書）
-    const unpaidInvoices = await prisma.invoice.findMany({
+    const unpaidInvoices = await prisma.invoices.findMany({
       where: {
         status: 'sent',
       },
