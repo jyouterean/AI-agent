@@ -50,6 +50,10 @@ export default function InvoiceDetailPage() {
         if (res.ok) {
           const data = await res.json()
           setInvoice(data)
+        } else if (res.status === 404) {
+          router.push('/not-found')
+        } else {
+          console.error('Error fetching invoice:', res.statusText)
         }
       } catch (error) {
         console.error('Error fetching invoice:', error)
@@ -59,7 +63,7 @@ export default function InvoiceDetailPage() {
     }
 
     if (id) fetchInvoice()
-  }, [id])
+  }, [id, router])
 
   const updateStatus = async (status: 'draft' | 'sent' | 'paid') => {
     try {

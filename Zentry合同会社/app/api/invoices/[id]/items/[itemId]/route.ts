@@ -65,9 +65,12 @@ export async function PATCH(
     }
 
     return NextResponse.json(item)
-  } catch (error) {
+  } catch (error: any) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.errors }, { status: 400 })
+    }
+    if (error?.code === 'P2025') {
+      return NextResponse.json({ error: 'Invoice item not found' }, { status: 404 })
     }
     console.error('Error updating invoice item:', error)
     return NextResponse.json({ error: 'Failed to update invoice item' }, { status: 500 })
@@ -111,7 +114,10 @@ export async function DELETE(
     }
 
     return NextResponse.json({ success: true })
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === 'P2025') {
+      return NextResponse.json({ error: 'Invoice item not found' }, { status: 404 })
+    }
     console.error('Error deleting invoice item:', error)
     return NextResponse.json({ error: 'Failed to delete invoice item' }, { status: 500 })
   }

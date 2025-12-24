@@ -37,6 +37,10 @@ export default function EditClientPage() {
             address: data.address || '',
             invoiceRegNo: data.invoiceRegNo || '',
           })
+        } else if (res.status === 404) {
+          router.push('/not-found')
+        } else {
+          console.error('Error fetching client:', res.statusText)
         }
       } catch (error) {
         console.error('Error fetching client:', error)
@@ -46,7 +50,7 @@ export default function EditClientPage() {
     }
 
     if (id) fetchClient()
-  }, [id])
+  }, [id, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

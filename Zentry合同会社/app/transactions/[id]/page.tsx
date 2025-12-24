@@ -32,6 +32,10 @@ export default function TransactionDetailPage() {
         if (res.ok) {
           const data = await res.json()
           setTransaction(data)
+        } else if (res.status === 404) {
+          router.push('/not-found')
+        } else {
+          console.error('Error fetching transaction:', res.statusText)
         }
       } catch (error) {
         console.error('Error fetching transaction:', error)
@@ -41,7 +45,7 @@ export default function TransactionDetailPage() {
     }
 
     if (id) fetchTransaction()
-  }, [id])
+  }, [id, router])
 
   if (loading) {
     return <p>読み込み中...</p>

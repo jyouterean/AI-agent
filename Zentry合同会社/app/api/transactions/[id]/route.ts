@@ -51,9 +51,12 @@ export async function PATCH(
     })
 
     return NextResponse.json(transaction)
-  } catch (error) {
+  } catch (error: any) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.errors }, { status: 400 })
+    }
+    if (error?.code === 'P2025') {
+      return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
     }
     console.error('Error updating transaction:', error)
     return NextResponse.json({ error: 'Failed to update transaction' }, { status: 500 })
@@ -70,7 +73,10 @@ export async function DELETE(
     })
 
     return NextResponse.json({ success: true })
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === 'P2025') {
+      return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
+    }
     console.error('Error deleting transaction:', error)
     return NextResponse.json({ error: 'Failed to delete transaction' }, { status: 500 })
   }

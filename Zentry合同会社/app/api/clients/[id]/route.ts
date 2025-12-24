@@ -54,9 +54,12 @@ export async function PATCH(
     })
 
     return NextResponse.json(client)
-  } catch (error) {
+  } catch (error: any) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: 'Invalid input', details: error.errors }, { status: 400 })
+    }
+    if (error?.code === 'P2025') {
+      return NextResponse.json({ error: 'Client not found' }, { status: 404 })
     }
     console.error('Error updating client:', error)
     return NextResponse.json({ error: 'Failed to update client' }, { status: 500 })
@@ -73,7 +76,10 @@ export async function DELETE(
     })
 
     return NextResponse.json({ success: true })
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.code === 'P2025') {
+      return NextResponse.json({ error: 'Client not found' }, { status: 404 })
+    }
     console.error('Error deleting client:', error)
     return NextResponse.json({ error: 'Failed to delete client' }, { status: 500 })
   }

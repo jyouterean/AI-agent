@@ -65,6 +65,10 @@ export default function EditInvoicePage() {
             notes: data.notes || '',
             bankAccount: data.bankAccount || '',
           })
+        } else if (res.status === 404) {
+          router.push('/not-found')
+        } else {
+          console.error('Error fetching invoice:', res.statusText)
         }
       } catch (error) {
         console.error('Error fetching invoice:', error)
@@ -74,7 +78,7 @@ export default function EditInvoicePage() {
     }
 
     if (id) fetchInvoice()
-  }, [id])
+  }, [id, router])
 
   const handleUpdateInvoice = async () => {
     setSaving(true)

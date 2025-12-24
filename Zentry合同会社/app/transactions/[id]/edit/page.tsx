@@ -46,6 +46,10 @@ export default function EditTransactionPage() {
             memo: data.memo || '',
             attachmentUrl: data.attachmentUrl || '',
           })
+        } else if (res.status === 404) {
+          router.push('/not-found')
+        } else {
+          console.error('Error fetching transaction:', res.statusText)
         }
       } catch (error) {
         console.error('Error fetching transaction:', error)
@@ -55,7 +59,7 @@ export default function EditTransactionPage() {
     }
 
     if (id) fetchTransaction()
-  }, [id])
+  }, [id, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
