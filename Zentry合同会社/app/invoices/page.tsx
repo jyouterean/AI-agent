@@ -22,14 +22,14 @@ interface Client {
 
 interface Invoice {
   id: string
-  client: Client
+  clients: Client
   issueDate: string
   dueDate: string
   status: 'draft' | 'sent' | 'paid'
   subtotalYen: number
   taxYen: number
   totalYen: number
-  items: InvoiceItem[]
+  invoice_items: InvoiceItem[]
 }
 
 export default function InvoicesPage() {
@@ -129,7 +129,7 @@ export default function InvoicesPage() {
               {filteredInvoices.map((inv) => (
                 <tr key={inv.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-sm">{formatDate(inv.issueDate)}</td>
-                  <td className="px-4 py-3 text-sm">{inv.client.name}</td>
+                  <td className="px-4 py-3 text-sm">{inv.clients.name}</td>
                   <td className="px-4 py-3 text-sm">
                     <span className={`px-2 py-1 rounded ${statusColors[inv.status]}`}>
                       {statusLabels[inv.status]}
