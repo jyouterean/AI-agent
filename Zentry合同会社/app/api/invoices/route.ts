@@ -15,8 +15,8 @@ export async function GET(request: NextRequest) {
   try {
     const invoices = await prisma.invoices.findMany({
       include: {
-        client: true,
-        items: true,
+        clients: true,
+        invoice_items: true,
       },
       orderBy: { issueDate: 'desc' },
     })
@@ -42,8 +42,8 @@ export async function POST(request: NextRequest) {
         totalYen: 0,
       },
       include: {
-        client: true,
-        items: true,
+        clients: true,
+        invoice_items: true,
       },
     })
 

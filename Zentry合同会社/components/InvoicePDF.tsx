@@ -101,7 +101,7 @@ interface Client {
 
 interface Invoice {
   id: string
-  client: Client
+  clients: Client
   issueDate: Date
   dueDate: Date
   status: string
@@ -110,7 +110,7 @@ interface Invoice {
   totalYen: number
   notes: string | null
   bankAccount: string | null
-  items: InvoiceItem[]
+  invoice_items: InvoiceItem[]
 }
 
 const InvoiceDocument = ({ invoice }: { invoice: Invoice }) => (
@@ -127,11 +127,11 @@ const InvoiceDocument = ({ invoice }: { invoice: Invoice }) => (
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>請求先</Text>
-        <Text>{invoice.client.name}</Text>
-        {invoice.client.address && <Text>{invoice.client.address}</Text>}
-        {invoice.client.email && <Text>{invoice.client.email}</Text>}
-        {invoice.client.invoiceRegNo && (
-          <Text>適格請求書発行事業者番号: {invoice.client.invoiceRegNo}</Text>
+        <Text>{invoice.clients.name}</Text>
+        {invoice.clients.address && <Text>{invoice.clients.address}</Text>}
+        {invoice.clients.email && <Text>{invoice.clients.email}</Text>}
+        {invoice.clients.invoiceRegNo && (
+          <Text>適格請求書発行事業者番号: {invoice.clients.invoiceRegNo}</Text>
         )}
       </View>
 
@@ -145,7 +145,7 @@ const InvoiceDocument = ({ invoice }: { invoice: Invoice }) => (
             <Text style={styles.col4}>税率</Text>
             <Text style={styles.col5}>金額</Text>
           </View>
-          {invoice.items.map((item) => (
+          {invoice.invoice_items.map((item) => (
             <View key={item.id} style={styles.tableRow}>
               <Text style={styles.col1}>{item.description}</Text>
               <Text style={styles.col2}>{item.quantity}</Text>
@@ -196,7 +196,7 @@ export default function InvoicePDF({ invoice }: { invoice: Invoice }) {
         <h1 className="text-2xl font-bold">請求書PDF</h1>
         <PDFDownloadLink
           document={<InvoiceDocument invoice={invoice} />}
-          fileName={`請求書_${invoice.client.name}_${formatDate(invoice.issueDate)}.pdf`}
+          fileName={`請求書_${invoice.clients.name}_${formatDate(invoice.issueDate)}.pdf`}
           className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
         >
           {({ blob, url, loading, error }) =>

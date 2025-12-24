@@ -39,7 +39,7 @@ export async function POST(
       let subtotalYen = 0
       let taxYen = 0
 
-      for (const item of invoice.items) {
+      for (const item of invoice.invoice_items) {
         const itemSubtotal = item.amountYen
         const itemTax = Math.floor(itemSubtotal * item.taxRate)
         subtotalYen += itemSubtotal

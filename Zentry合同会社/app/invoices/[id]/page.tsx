@@ -24,7 +24,7 @@ interface Client {
 
 interface Invoice {
   id: string
-  client: Client
+  clients: Client
   issueDate: string
   dueDate: string
   status: 'draft' | 'sent' | 'paid'
@@ -33,7 +33,7 @@ interface Invoice {
   totalYen: number
   notes: string | null
   bankAccount: string | null
-  items: InvoiceItem[]
+  invoice_items: InvoiceItem[]
 }
 
 export default function InvoiceDetailPage() {
@@ -140,11 +140,11 @@ export default function InvoiceDetailPage() {
 
           <div className="border-t pt-4">
             <h3 className="font-bold mb-2">請求先</h3>
-            <p className="text-sm">{invoice.client.name}</p>
-            {invoice.client.address && <p className="text-sm text-gray-600">{invoice.client.address}</p>}
-            {invoice.client.email && <p className="text-sm text-gray-600">{invoice.client.email}</p>}
-            {invoice.client.invoiceRegNo && (
-              <p className="text-sm text-gray-600">適格請求書発行事業者番号: {invoice.client.invoiceRegNo}</p>
+            <p className="text-sm">{invoice.clients.name}</p>
+            {invoice.clients.address && <p className="text-sm text-gray-600">{invoice.clients.address}</p>}
+            {invoice.clients.email && <p className="text-sm text-gray-600">{invoice.clients.email}</p>}
+            {invoice.clients.invoiceRegNo && (
+              <p className="text-sm text-gray-600">適格請求書発行事業者番号: {invoice.clients.invoiceRegNo}</p>
             )}
           </div>
         </div>
@@ -161,7 +161,7 @@ export default function InvoiceDetailPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {invoice.items.map((item) => (
+              {invoice.invoice_items.map((item) => (
                 <tr key={item.id}>
                   <td className="px-4 py-2 text-sm">{item.description}</td>
                   <td className="px-4 py-2 text-sm text-right">{item.quantity}</td>

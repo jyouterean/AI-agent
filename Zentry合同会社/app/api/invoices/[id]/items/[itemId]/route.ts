@@ -38,7 +38,7 @@ export async function PATCH(
     })
 
     // 請求書の合計を再計算
-    const invoice = await prisma.invoice.findUnique({
+    const invoice = await prisma.invoices.findUnique({
       where: { id: params.id },
       include: { invoice_items: true },
     })
@@ -47,7 +47,7 @@ export async function PATCH(
       let subtotalYen = 0
       let taxYen = 0
 
-      for (const invItem of invoice.items) {
+      for (const invItem of invoice.invoice_items) {
         const itemSubtotal = invItem.amountYen
         const itemTax = Math.floor(itemSubtotal * invItem.taxRate)
         subtotalYen += itemSubtotal
@@ -87,7 +87,7 @@ export async function DELETE(
     })
 
     // 請求書の合計を再計算
-    const invoice = await prisma.invoice.findUnique({
+    const invoice = await prisma.invoices.findUnique({
       where: { id: params.id },
       include: { invoice_items: true },
     })
@@ -96,7 +96,7 @@ export async function DELETE(
       let subtotalYen = 0
       let taxYen = 0
 
-      for (const item of invoice.items) {
+      for (const item of invoice.invoice_items) {
         const itemSubtotal = item.amountYen
         const itemTax = Math.floor(itemSubtotal * item.taxRate)
         subtotalYen += itemSubtotal

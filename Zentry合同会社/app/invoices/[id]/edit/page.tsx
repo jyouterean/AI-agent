@@ -22,13 +22,13 @@ interface Client {
 
 interface Invoice {
   id: string
-  client: Client
+  clients: Client
   issueDate: string
   dueDate: string
   status: 'draft' | 'sent' | 'paid'
   notes: string | null
   bankAccount: string | null
-  items: InvoiceItem[]
+  invoice_items: InvoiceItem[]
 }
 
 export default function EditInvoicePage() {
@@ -196,7 +196,7 @@ export default function EditInvoicePage() {
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-1">顧客</label>
-            <p className="text-gray-700">{invoice.client.name}</p>
+            <p className="text-gray-700">{invoice.clients.name}</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -255,7 +255,7 @@ export default function EditInvoicePage() {
       <div className="bg-white p-6 rounded-lg shadow">
         <h2 className="text-xl font-bold mb-4">明細</h2>
 
-        {invoice.items.length === 0 ? (
+        {invoice.invoice_items.length === 0 ? (
           <p className="text-gray-500 mb-4">明細がありません</p>
         ) : (
           <div className="mb-6">
@@ -271,7 +271,7 @@ export default function EditInvoicePage() {
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {invoice.items.map((item) => (
+                {invoice.invoice_items.map((item) => (
                   <tr key={item.id}>
                     {editingItem === item.id ? (
                       <>

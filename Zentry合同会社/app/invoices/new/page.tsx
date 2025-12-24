@@ -119,7 +119,7 @@ export default function NewInvoicePage() {
         const invoiceRes = await fetch(`/api/invoices/${invoiceId}`)
         if (invoiceRes.ok) {
           const invoice = await invoiceRes.json()
-          setItems(invoice.items)
+          setItems(invoice.invoice_items)
         }
       } else {
         const error = await res.json()
@@ -145,7 +145,7 @@ export default function NewInvoicePage() {
         const invoiceRes = await fetch(`/api/invoices/${invoiceId}`)
         if (invoiceRes.ok) {
           const invoice = await invoiceRes.json()
-          setItems(invoice.items)
+          setItems(invoice.invoice_items)
         }
       }
     } catch (error) {
