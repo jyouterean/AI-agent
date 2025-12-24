@@ -8,37 +8,46 @@ export default async function DashboardPage() {
   const startOfMonth = now.startOf('month').toDate()
   const endOfMonth = now.endOf('month').toDate()
 
-  // 今月の売上
-  const incomeTransactions = await prisma.transaction.findMany({
-    where: {
-      type: 'income',
-      date: {
-        gte: startOfMonth,
-        lte: endOfMonth,
-      },
-    },
-  })
-  const incomeTotal = incomeTransactions.reduce((sum, t) => sum + t.amountYen, 0)
+  let incomeTotal = 0
+  let expenseTotal = 0
+  let unpaidTotal = 0
 
-  // 今月の支出
-  const expenseTransactions = await prisma.transaction.findMany({
-    where: {
-      type: 'expense',
-      date: {
-        gte: startOfMonth,
-        lte: endOfMonth,
+  try {
+    // 今月の売上
+    const incomeTransactions = await prisma.transaction.findMany({
+      where: {
+        type: 'income',
+        date: {
+          gte: startOfMonth,
+          lte: endOfMonth,
+        },
       },
-    },
-  })
-  const expenseTotal = expenseTransactions.reduce((sum, t) => sum + t.amountYen, 0)
+    })
+    incomeTotal = incomeTransactions.reduce((sum, t) => sum + t.amountYen, 0)
 
-  // 未回収額（送付済みだが未入金の請求書）
-  const unpaidInvoices = await prisma.invoice.findMany({
-    where: {
-      status: 'sent',
-    },
-  })
-  const unpaidTotal = unpaidInvoices.reduce((sum, inv) => sum + inv.totalYen, 0)
+    // 今月の支出
+    const expenseTransactions = await prisma.transaction.findMany({
+      where: {
+        type: 'expense',
+        date: {
+          gte: startOfMonth,
+          lte: endOfMonth,
+        },
+      },
+    })
+    expenseTotal = expenseTransactions.reduce((sum, t) => sum + t.amountYen, 0)
+
+    // 未回収額（送付済みだが未入金の請求書）
+    const unpaidInvoices = await prisma.invoice.findMany({
+      where: {
+        status: 'sent',
+      },
+    })
+    unpaidTotal = unpaidInvoices.reduce((sum, inv) => sum + inv.totalYen, 0)
+  } catch (error) {
+    console.error('Error fetching dashboard data:', error)
+    // エラーが発生した場合は0を表示
+  }
 
   const grossProfit = incomeTotal - expenseTotal
 
