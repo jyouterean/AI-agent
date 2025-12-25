@@ -6,9 +6,7 @@ Neon PostgreSQLデータベースが設定されています。
 
 ### 接続文字列
 
-```
-postgresql://neondb_owner:npg_nYXFIxP3o9fr@ep-divine-tree-a1x38li5-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
-```
+データベース接続文字列は環境変数`DATABASE_URL`で設定してください。実際の接続文字列は`.env`ファイルに記載してください（このファイルはGitにコミットされません）。
 
 ## データベース設計
 
@@ -87,8 +85,10 @@ postgresql://neondb_owner:npg_nYXFIxP3o9fr@ep-divine-tree-a1x38li5-pooler.ap-sou
 `.env`ファイルに以下を設定：
 
 ```env
-DATABASE_URL="postgresql://neondb_owner:npg_nYXFIxP3o9fr@ep-divine-tree-a1x38li5-pooler.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+DATABASE_URL="postgresql://ユーザー名:パスワード@ホスト名/データベース名?sslmode=require&channel_binding=require"
 ```
+
+**注意**: 実際の接続文字列はNeonのダッシュボードから取得してください。機密情報のため、このファイルには記載しません。
 
 ### 本番環境
 

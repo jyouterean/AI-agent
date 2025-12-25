@@ -36,9 +36,17 @@ npm install
 
 ```env
 DATABASE_URL="file:./dev.db"
-OPENAI_API_KEY="your-openai-api-key-here"
+OPENAI_API_KEY="sk-..."
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
+COMPANY_NAME="会社名"
+COMPANY_ADDRESS="住所"
+COMPANY_EMAIL="メールアドレス"
+COMPANY_INVOICE_REG_NO="適格請求書発行事業者番号"
+COMPANY_DEFAULT_TAX_RATE="0.1"
+COMPANY_DEFAULT_PAYMENT_TERM_DAYS="30"
 ```
+
+**注意**: `OPENAI_API_KEY`は実際のAPIキーに置き換えてください。`.env`ファイルは`.gitignore`に含まれているため、Gitにコミットされません。
 
 ### 3. データベースのセットアップ
 
