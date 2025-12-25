@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import dayjs from 'dayjs'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -15,24 +16,116 @@ interface Message {
   }>
 }
 
+interface Conversation {
+  id: string
+  title: string
+  messages: Message[]
+  createdAt: string
+  updatedAt: string
+}
+
 interface PendingAction {
   toolCallId: string
   functionName: string
   arguments: any
 }
 
+const STORAGE_KEY = 'agent_conversations'
+
 export default function AgentPage() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'assistant',
-      content: 'こんにちは！経理管理をお手伝いします。取引の登録や請求書の作成など、何でもお聞きください。',
-    },
-  ])
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
+  const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([])
   const [providerType, setProviderType] = useState<'openai' | 'notion' | 'hybrid'>('openai')
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // 会話履歴をlocalStorageから読み込む
+  useEffect(() => {
+    const stored = localStorage.getItem(STORAGE_KEY)
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored)
+        setConversations(parsed)
+      } catch (error) {
+        console.error('Error loading conversations:', error)
+      }
+    }
+    // 新しい会話を開始
+    startNewConversation()
+  }, [])
+
+  // 会話履歴をlocalStorageに保存
+  useEffect(() => {
+    if (conversations.length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations))
+    }
+  }, [conversations])
+
+  // 新しい会話を開始
+  const startNewConversation = () => {
+    const newId = `conv_${Date.now()}`
+    const newConversation: Conversation = {
+      id: newId,
+      title: '新しい会話',
+      messages: [
+        {
+          role: 'assistant',
+          content: 'こんにちは！経理管理をお手伝いします。取引の登録や請求書の作成など、何でもお聞きください。',
+        },
+      ],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    setConversations((prev) => [newConversation, ...prev])
+    setCurrentConversationId(newId)
+    setMessages(newConversation.messages)
+    setPendingActions([])
+  }
+
+  // 会話を選択
+  const selectConversation = (id: string) => {
+    const conversation = conversations.find((c) => c.id === id)
+    if (conversation) {
+      setCurrentConversationId(id)
+      setMessages(conversation.messages)
+      setPendingActions([])
+    }
+  }
+
+  // 会話のタイトルを更新
+  const updateConversationTitle = (id: string, title: string) => {
+    setConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, title, updatedAt: new Date().toISOString() } : c))
+    )
+  }
+
+  // 会話を更新
+  const updateCurrentConversation = (newMessages: Message[]) => {
+    if (!currentConversationId) return
+
+    setConversations((prev) =>
+      prev.map((c) => {
+        if (c.id === currentConversationId) {
+          // 最初のユーザーメッセージからタイトルを生成
+          const firstUserMessage = newMessages.find((m) => m.role === 'user')
+          const title = firstUserMessage
+            ? firstUserMessage.content.slice(0, 30) + (firstUserMessage.content.length > 30 ? '...' : '')
+            : '新しい会話'
+
+          return {
+            ...c,
+            messages: newMessages,
+            title,
+            updatedAt: new Date().toISOString(),
+          }
+        }
+        return c
+      })
+    )
+  }
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -50,7 +143,9 @@ export default function AgentPage() {
       content: input,
     }
 
-    setMessages((prev) => [...prev, userMessage])
+    const newMessages = [...messages, userMessage]
+    setMessages(newMessages)
+    updateCurrentConversation(newMessages)
     setInput('')
     setLoading(true)
 
@@ -59,7 +154,7 @@ export default function AgentPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [...messages, userMessage].map((m) => ({
+          messages: newMessages.map((m) => ({
             role: m.role,
             content: m.content,
           })),
@@ -78,23 +173,29 @@ export default function AgentPage() {
         }))
 
         setPendingActions(actions)
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: 'assistant',
-            content: data.content || '以下のアクションを実行しますか？',
-            toolCalls: data.toolCalls,
-          },
-        ])
+        const assistantMessage: Message = {
+          role: 'assistant',
+          content: data.content || '以下のアクションを実行しますか？',
+          toolCalls: data.toolCalls,
+        }
+        const updatedMessages = [...newMessages, assistantMessage]
+        setMessages(updatedMessages)
+        updateCurrentConversation(updatedMessages)
       } else {
-        setMessages((prev) => [...prev, { role: 'assistant', content: data.content }])
+        const assistantMessage: Message = { role: 'assistant', content: data.content }
+        const updatedMessages = [...newMessages, assistantMessage]
+        setMessages(updatedMessages)
+        updateCurrentConversation(updatedMessages)
       }
     } catch (error) {
       console.error('Error calling agent:', error)
-      setMessages((prev) => [
-        ...prev,
-        { role: 'assistant', content: 'エラーが発生しました。もう一度お試しください。' },
-      ])
+      const errorMessage: Message = {
+        role: 'assistant',
+        content: 'エラーが発生しました。もう一度お試しください。',
+      }
+      const updatedMessages = [...newMessages, errorMessage]
+      setMessages(updatedMessages)
+      updateCurrentConversation(updatedMessages)
     } finally {
       setLoading(false)
     }
@@ -120,7 +221,9 @@ export default function AgentPage() {
           const error = await res.json()
           let errorMessage = error.error || '実行に失敗しました'
           if (error.details && Array.isArray(error.details)) {
-            errorMessage += '\n詳細: ' + error.details.map((d: any) => `${d.path?.join('.') || ''}: ${d.message}`).join(', ')
+            errorMessage +=
+              '\n詳細: ' +
+              error.details.map((d: any) => `${d.path?.join('.') || ''}: ${d.message}`).join(', ')
           }
           throw new Error(errorMessage)
         }
@@ -128,7 +231,7 @@ export default function AgentPage() {
         const result = await res.json()
 
         let successMessage = `✅ ${getActionLabel(action.functionName)}を実行しました。`
-        
+
         if (action.functionName === 'search_client') {
           const clients = result.data || []
           if (clients.length > 0) {
@@ -154,25 +257,25 @@ export default function AgentPage() {
           successMessage += ` ID: ${result.data.id}`
         }
 
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: 'assistant',
-            content: successMessage,
-          },
-        ])
+        const successMsg: Message = {
+          role: 'assistant',
+          content: successMessage,
+        }
+        const updatedMessages = [...messages, successMsg]
+        setMessages(updatedMessages)
+        updateCurrentConversation(updatedMessages)
       }
 
       setPendingActions([])
     } catch (error) {
       console.error('Error executing actions:', error)
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: `❌ エラー: ${error instanceof Error ? error.message : '実行に失敗しました'}`,
-        },
-      ])
+      const errorMsg: Message = {
+        role: 'assistant',
+        content: `❌ エラー: ${error instanceof Error ? error.message : '実行に失敗しました'}`,
+      }
+      const updatedMessages = [...messages, errorMsg]
+      setMessages(updatedMessages)
+      updateCurrentConversation(updatedMessages)
     } finally {
       setLoading(false)
     }
@@ -180,10 +283,28 @@ export default function AgentPage() {
 
   const handleReject = () => {
     setPendingActions([])
-    setMessages((prev) => [
-      ...prev,
-      { role: 'assistant', content: '了解しました。アクションをキャンセルしました。' },
-    ])
+    const cancelMsg: Message = {
+      role: 'assistant',
+      content: '了解しました。アクションをキャンセルしました。',
+    }
+    const updatedMessages = [...messages, cancelMsg]
+    setMessages(updatedMessages)
+    updateCurrentConversation(updatedMessages)
+  }
+
+  const handleDeleteConversation = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (confirm('この会話を削除しますか？')) {
+      setConversations((prev) => prev.filter((c) => c.id !== id))
+      if (currentConversationId === id) {
+        if (conversations.length > 1) {
+          const remaining = conversations.filter((c) => c.id !== id)
+          selectConversation(remaining[0].id)
+        } else {
+          startNewConversation()
+        }
+      }
+    }
   }
 
   const getActionLabel = (functionName: string): string => {
@@ -212,9 +333,7 @@ export default function AgentPage() {
       case 'add_invoice_item':
         return `明細追加: ${args.description} - ${args.quantity} × ${args.unitPriceYen.toLocaleString()}円 (税率: ${(args.taxRate * 100).toFixed(0)}%)`
       case 'create_client':
-        return `顧客登録: ${args.name}${
-          args.invoiceRegNo ? ` / 登録番号: ${args.invoiceRegNo}` : ''
-        }`
+        return `顧客登録: ${args.name}${args.invoiceRegNo ? ` / 登録番号: ${args.invoiceRegNo}` : ''}`
       case 'update_invoice_status':
         return `請求書ステータス更新: ID=${args.invoiceId} -> ${args.status}`
       case 'update_transaction':
@@ -231,113 +350,159 @@ export default function AgentPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-200px)]">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">AIエージェント</h1>
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium">AIプロバイダー:</label>
-          <select
-            value={providerType}
-            onChange={(e) => setProviderType(e.target.value as 'openai' | 'notion' | 'hybrid')}
-            className="border rounded px-3 py-1 text-sm"
-            disabled={loading}
+    <div className="flex h-[calc(100vh-200px)] gap-4">
+      {/* 左側: 会話履歴 */}
+      <div className="w-64 bg-white rounded-lg shadow flex flex-col">
+        <div className="p-4 border-b">
+          <button
+            onClick={startNewConversation}
+            className="w-full bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mb-2"
           >
-            <option value="openai">OpenAI</option>
-            <option value="notion">Notion API</option>
-            <option value="hybrid">Hybrid (OpenAI + Notion)</option>
-          </select>
+            + 新しい会話
+          </button>
         </div>
-      </div>
-
-      <div className="flex-1 bg-white rounded-lg shadow p-4 mb-4 overflow-y-auto">
-        <div className="space-y-4">
-          {messages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[80%] rounded-lg p-4 ${
-                  msg.role === 'user'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 text-gray-800'
-                }`}
-              >
-                <p className="whitespace-pre-wrap">{msg.content}</p>
-                {msg.toolCalls && msg.toolCalls.length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-gray-300">
-                    <p className="text-sm font-medium mb-2">提案されたアクション:</p>
-                    <ul className="list-disc list-inside text-sm space-y-1">
-                      {msg.toolCalls.map((call) => (
-                        <li key={call.id}>
-                          {getActionLabel(call.function.name)}: {JSON.stringify(call.function.arguments, null, 2)}
-                        </li>
-                      ))}
-                    </ul>
+        <div className="flex-1 overflow-y-auto">
+          {conversations.length === 0 ? (
+            <div className="p-4 text-center text-gray-500 text-sm">会話履歴がありません</div>
+          ) : (
+            <div className="divide-y">
+              {conversations.map((conv) => (
+                <div
+                  key={conv.id}
+                  onClick={() => selectConversation(conv.id)}
+                  className={`p-3 cursor-pointer hover:bg-gray-50 ${
+                    currentConversationId === conv.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                  }`}
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{conv.title}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {dayjs(conv.updatedAt).format('M/D HH:mm')}
+                      </p>
+                    </div>
+                    <button
+                      onClick={(e) => handleDeleteConversation(conv.id, e)}
+                      className="ml-2 text-red-500 hover:text-red-700 text-xs"
+                    >
+                      ×
+                    </button>
                   </div>
-                )}
-              </div>
-            </div>
-          ))}
-          {loading && (
-            <div className="flex justify-start">
-              <div className="bg-gray-100 rounded-lg p-4">
-                <p>考え中...</p>
-              </div>
+                </div>
+              ))}
             </div>
           )}
-          <div ref={messagesEndRef} />
         </div>
       </div>
 
-      {pendingActions.length > 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-          <h3 className="font-bold mb-2">承認待ちのアクション</h3>
-          <ul className="list-disc list-inside mb-4 space-y-1">
-            {pendingActions.map((action, idx) => (
-              <li key={idx} className="text-sm">
-                {formatActionPreview(action)}
-              </li>
-            ))}
-          </ul>
-          <div className="flex gap-2">
-            <button
-              onClick={handleApprove}
+      {/* 右側: 現在の会話 */}
+      <div className="flex-1 flex flex-col">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold">エージェント</h1>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium">AIプロバイダー:</label>
+            <select
+              value={providerType}
+              onChange={(e) => setProviderType(e.target.value as 'openai' | 'notion' | 'hybrid')}
+              className="border rounded px-3 py-1 text-sm"
               disabled={loading}
-              className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:opacity-50"
             >
-              承認して実行
-            </button>
-            <button
-              onClick={handleReject}
-              disabled={loading}
-              className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 disabled:opacity-50"
-            >
-              キャンセル
-            </button>
+              <option value="openai">OpenAI</option>
+              <option value="notion">Notion API</option>
+              <option value="hybrid">Hybrid (OpenAI + Notion)</option>
+            </select>
           </div>
         </div>
-      )}
 
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-          placeholder="例: 12/20にガソリン代 6500円、支出で登録して"
-          className="flex-1 border rounded px-4 py-2"
-          disabled={loading}
-        />
-        <button
-          onClick={handleSend}
-          disabled={loading || !input.trim()}
-          className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
-        >
-          送信
-        </button>
+        <div className="flex-1 bg-white rounded-lg shadow p-4 mb-4 overflow-y-auto">
+          <div className="space-y-4">
+            {messages.map((msg, idx) => (
+              <div
+                key={idx}
+                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-[80%] rounded-lg p-4 ${
+                    msg.role === 'user'
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-100 text-gray-800'
+                  }`}
+                >
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                  {msg.toolCalls && msg.toolCalls.length > 0 && (
+                    <div className="mt-2 pt-2 border-t border-gray-300">
+                      <p className="text-sm font-medium mb-2">提案されたアクション:</p>
+                      <ul className="list-disc list-inside text-sm space-y-1">
+                        {msg.toolCalls.map((call) => (
+                          <li key={call.id}>
+                            {getActionLabel(call.function.name)}: {JSON.stringify(call.function.arguments, null, 2)}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+            {loading && (
+              <div className="flex justify-start">
+                <div className="bg-gray-100 rounded-lg p-4">
+                  <p>考え中...</p>
+                </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
+
+        {pendingActions.length > 0 && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
+            <h3 className="font-bold mb-2">承認待ちのアクション</h3>
+            <ul className="list-disc list-inside mb-4 space-y-1">
+              {pendingActions.map((action, idx) => (
+                <li key={idx} className="text-sm">
+                  {formatActionPreview(action)}
+                </li>
+              ))}
+            </ul>
+            <div className="flex gap-2">
+              <button
+                onClick={handleApprove}
+                disabled={loading}
+                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:opacity-50"
+              >
+                承認して実行
+              </button>
+              <button
+                onClick={handleReject}
+                disabled={loading}
+                className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 disabled:opacity-50"
+              >
+                キャンセル
+              </button>
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+            placeholder="例: 12/20にガソリン代 6500円、支出で登録して"
+            className="flex-1 border rounded px-4 py-2"
+            disabled={loading}
+          />
+          <button
+            onClick={handleSend}
+            disabled={loading || !input.trim()}
+            className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 disabled:opacity-50"
+          >
+            送信
+          </button>
+        </div>
       </div>
     </div>
   )
 }
-
