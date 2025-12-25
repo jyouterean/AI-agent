@@ -7,6 +7,7 @@
 - **取引管理**: 売上/支出の登録・一覧・編集・削除（CRUD）
 - **請求書作成**: 顧客情報、明細行の追加、税率設定、PDF出力
 - **ダッシュボード**: 今月の売上、支出、粗利、未回収額を表示
+- **タスク管理**: Notion APIを使用したタスクの作成・管理（ステータス、優先度、期限、タグ対応）
 - **AIエージェント**: 自然言語で指示を受け、取引登録や請求書作成を補助（承認フロー付き）
 
 ## 技術スタック
@@ -17,6 +18,7 @@
 - **ORM**: Prisma
 - **PDF生成**: @react-pdf/renderer
 - **AI**: OpenAI API (GPT-4)
+- **タスク管理**: Notion API
 - **バリデーション**: Zod
 - **日付処理**: dayjs
 
@@ -48,6 +50,7 @@ COMPANY_DEFAULT_PAYMENT_TERM_DAYS="30"
 # Notion AI統合（オプション）
 NOTION_API_KEY="secret_..."
 NOTION_DATABASE_ID="..."
+NOTION_TASKS_DATABASE_ID="..."  # タスク管理用データベースID
 ```
 
 **注意**: 
@@ -93,10 +96,12 @@ pnpm dev
 │   │   ├── transactions/ # 取引API
 │   │   ├── invoices/     # 請求書API
 │   │   ├── clients/      # 顧客API
+│   │   ├── tasks/        # タスク管理API
 │   │   └── agent/        # AIエージェントAPI
 │   ├── dashboard/        # ダッシュボード
 │   ├── transactions/     # 取引管理
 │   ├── invoices/         # 請求書管理
+│   ├── tasks/            # タスク管理
 │   └── agent/            # AIエージェントUI
 ├── components/           # Reactコンポーネント
 ├── lib/                  # ユーティリティ
@@ -121,6 +126,22 @@ pnpm dev
 4. 明細を追加（明細名、数量、単価、税率）
 5. 「保存して詳細へ」をクリック
 6. PDFを表示・ダウンロード可能
+
+### タスク管理
+
+1. `/tasks` にアクセス
+2. 「新規作成」ボタンをクリック
+3. タイトル、説明、ステータス、優先度、期限、タグを設定
+4. タスク一覧でステータスや優先度でフィルタリング可能
+5. 各タスクからNotionページに直接アクセス可能
+
+**注意**: タスク管理を使用するには、Notionでタスク管理用のデータベースを作成し、以下のプロパティを設定してください：
+- `Title` (タイトル) - Title型
+- `Description` (説明) - Rich Text型
+- `Status` (ステータス) - Select型（not_started, in_progress, completed, on_hold）
+- `Priority` (優先度) - Select型（low, medium, high, urgent）
+- `Due Date` (期限) - Date型
+- `Tags` (タグ) - Multi-select型
 
 ### AIエージェントの使用
 

@@ -108,5 +108,19 @@ Notion APIはデータの保存・検索に特化しています。より高度�
 
     return await this.notion.pages.retrieve({ page_id: pageId })
   }
+
+  /**
+   * Notionページをアーカイブ（削除）
+   */
+  async archivePage(pageId: string) {
+    if (!this.notion) {
+      throw new Error('Notion client is not initialized')
+    }
+
+    return await this.notion.pages.update({
+      page_id: pageId,
+      archived: true,
+    })
+  }
 }
 

@@ -24,6 +24,7 @@ export default function RootLayout({
             <Link href="/transactions" className="hover:text-gray-300">取引</Link>
             <Link href="/invoices" className="hover:text-gray-300">請求書</Link>
             <Link href="/clients" className="hover:text-gray-300">顧客</Link>
+            <Link href="/tasks" className="hover:text-gray-300">タスク</Link>
             <Link href="/agent" className="hover:text-gray-300">AIエージェント</Link>
           </div>
         </nav>
