@@ -122,7 +122,7 @@ export async function POST(request: NextRequest) {
 - 顧客一覧: ${clients.map(c => c.name).join(', ')}
 - 直近の請求書: ${recentInvoices.slice(0, 3).map(inv => ({
   id: inv.id,
-  client: inv.client.name,
+  client: inv.clients.name,
   totalYen: inv.totalYen,
   status: inv.status,
 }))}

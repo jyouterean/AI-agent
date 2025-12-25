@@ -8,20 +8,20 @@ datasource db {
 }
 
 model clients {
-  id           String     @id
+  id           String     @id @default(cuid())
   name         String     @db.VarChar(200)
   email        String?    @db.VarChar(255)
   address      String?
   invoiceRegNo String?    @db.VarChar(50)
   createdAt    DateTime   @default(now())
-  updatedAt    DateTime
+  updatedAt    DateTime   @updatedAt
   invoices     invoices[]
 
   @@index([name])
 }
 
 model invoice_items {
-  id           String   @id
+  id           String   @id @default(cuid())
   invoiceId    String
   description  String   @db.VarChar(200)
   quantity     Int
@@ -35,7 +35,7 @@ model invoice_items {
 }
 
 model invoices {
-  id            String          @id
+  id            String          @id @default(cuid())
   clientId      String
   issueDate     DateTime
   dueDate       DateTime
@@ -46,7 +46,7 @@ model invoices {
   notes         String?
   bankAccount   String?         @db.VarChar(200)
   createdAt     DateTime        @default(now())
-  updatedAt     DateTime
+  updatedAt     DateTime        @updatedAt
   invoice_items invoice_items[]
   clients       clients         @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
@@ -56,7 +56,7 @@ model invoices {
 }
 
 model transactions {
-  id              String   @id
+  id              String   @id @default(cuid())
   type            String   @db.VarChar(20)
   date            DateTime
   accountCategory String   @db.VarChar(100)
@@ -65,7 +65,7 @@ model transactions {
   memo            String?
   attachmentUrl   String?  @db.VarChar(500)
   createdAt       DateTime @default(now())
-  updatedAt       DateTime
+  updatedAt       DateTime @updatedAt
 
   @@index([date])
   @@index([type])

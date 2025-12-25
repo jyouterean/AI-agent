@@ -199,9 +199,7 @@ export default function InvoicePDF({ invoice }: { invoice: Invoice }) {
           fileName={`請求書_${invoice.clients.name}_${formatDate(invoice.issueDate)}.pdf`}
           className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
         >
-          {({ blob, url, loading, error }) =>
-            loading ? 'PDF生成中...' : 'PDFをダウンロード'
-          }
+          PDFをダウンロード
         </PDFDownloadLink>
       </div>
       <div className="flex-1">

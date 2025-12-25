@@ -6,7 +6,7 @@ const itemSchema = z.object({
   description: z.string().min(1),
   quantity: z.number().int().positive(),
   unitPriceYen: z.number().int().positive(),
-  taxRate: z.enum([0, 0.08, 0.1]).or(z.number().refine((n) => n === 0 || n === 0.08 || n === 0.1)),
+  taxRate: z.number().refine((n) => n === 0 || n === 0.08 || n === 0.1),
 })
 
 export async function POST(
