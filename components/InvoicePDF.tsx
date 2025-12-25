@@ -194,13 +194,23 @@ export default function InvoicePDF({ invoice }: { invoice: Invoice }) {
     <div className="h-screen flex flex-col">
       <div className="bg-white p-4 border-b flex justify-between items-center">
         <h1 className="text-2xl font-bold">請求書PDF</h1>
-        <PDFDownloadLink
-          document={<InvoiceDocument invoice={invoice} />}
-          fileName={`請求書_${invoice.clients.name}_${formatDate(invoice.issueDate)}.pdf`}
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-        >
-          PDFをダウンロード
-        </PDFDownloadLink>
+        <div className="flex gap-2">
+          <PDFDownloadLink
+            document={<InvoiceDocument invoice={invoice} />}
+            fileName={`請求書_${invoice.clients.name}_${formatDate(invoice.issueDate)}.pdf`}
+            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          >
+            PDFをダウンロード
+          </PDFDownloadLink>
+          <button
+            onClick={() => {
+              window.location.href = `/api/invoices/${invoice.id}/excel`
+            }}
+            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+          >
+            Excelをダウンロード
+          </button>
+        </div>
       </div>
       <div className="flex-1">
         <PDFViewer width="100%" height="100%">

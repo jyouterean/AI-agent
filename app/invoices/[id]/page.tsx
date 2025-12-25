@@ -108,12 +108,32 @@ export default function InvoiceDetailPage() {
           >
             編集
           </Link>
-          <Link
-            href={`/invoices/${id}/pdf`}
-            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-          >
-            PDFを表示
-          </Link>
+          <div className="relative group">
+            <button className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 flex items-center gap-1">
+              エクスポート
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-10">
+              <div className="py-1">
+                <Link
+                  href={`/invoices/${id}/pdf`}
+                  className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                >
+                  PDFを表示・ダウンロード
+                </Link>
+                <button
+                  onClick={() => {
+                    window.location.href = `/api/invoices/${id}/excel`
+                  }}
+                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                >
+                  Excelをダウンロード
+                </button>
+              </div>
+            </div>
+          </div>
           <button
             onClick={() => router.back()}
             className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300"
