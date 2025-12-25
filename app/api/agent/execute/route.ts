@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import dayjs from 'dayjs'
+import { NotionProvider } from '@/lib/ai/providers/notion'
 
 const executeSchema = z.object({
   action: z.enum([
@@ -12,6 +13,8 @@ const executeSchema = z.object({
     'create_client',
     'update_invoice_status',
     'update_transaction',
+    'save_to_notion',
+    'search_notion',
   ]),
   params: z.record(z.any()),
 })
@@ -213,6 +216,90 @@ export async function POST(request: NextRequest) {
         })
 
         return NextResponse.json({ success: true, data: transaction })
+      }
+
+      case 'save_to_notion': {
+        if (!process.env.NOTION_API_KEY) {
+          return NextResponse.json({ error: 'Notion API key is not configured' }, { status: 400 })
+        }
+
+        const notionSchema = z.object({
+          databaseId: z.string().min(1).optional(),
+          title: z.string().min(1),
+          content: z.string().optional(),
+          properties: z.record(z.any()).optional(),
+        })
+
+        const data = notionSchema.parse(params)
+        const databaseId = data.databaseId || process.env.NOTION_DATABASE_ID
+
+        if (!databaseId) {
+          return NextResponse.json({ error: 'Notion database ID is required' }, { status: 400 })
+        }
+
+        const notionProvider = new NotionProvider({
+          apiKey: process.env.NOTION_API_KEY,
+        })
+
+        const properties: Record<string, any> = {
+          title: {
+            title: [
+              {
+                text: {
+                  content: data.title,
+                },
+              },
+            ],
+          },
+          ...data.properties,
+        }
+
+        const page = await notionProvider.createPage(databaseId, properties)
+
+        // Notion APIのレスポンスからURLを構築
+        const pageUrl = `https://notion.so/${page.id.replace(/-/g, '')}`
+        return NextResponse.json({ success: true, data: { pageId: page.id, url: pageUrl } })
+      }
+
+      case 'search_notion': {
+        if (!process.env.NOTION_API_KEY) {
+          return NextResponse.json({ error: 'Notion API key is not configured' }, { status: 400 })
+        }
+
+        const searchSchema = z.object({
+          databaseId: z.string().min(1).optional(),
+          query: z.string().min(1),
+        })
+
+        const data = searchSchema.parse(params)
+        const databaseId = data.databaseId || process.env.NOTION_DATABASE_ID
+
+        if (!databaseId) {
+          return NextResponse.json({ error: 'Notion database ID is required' }, { status: 400 })
+        }
+
+        const notionProvider = new NotionProvider({
+          apiKey: process.env.NOTION_API_KEY,
+        })
+
+        // 簡易的な検索（実際の実装では、より高度な検索を実装）
+        const results = await notionProvider.queryDatabase(databaseId, {
+          property: 'title',
+          title: {
+            contains: data.query,
+          },
+        })
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            results: results.results.map((page: any) => ({
+              id: page.id,
+              url: page.url,
+              properties: page.properties,
+            })),
+          },
+        })
       }
 
       default:

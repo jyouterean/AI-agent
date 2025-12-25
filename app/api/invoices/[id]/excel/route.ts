@@ -22,18 +22,18 @@ export async function GET(
     }
 
     // 会社情報を環境変数から取得
-    const companyName = process.env.COMPANY_NAME || '自社'
-    const companyAddress = process.env.COMPANY_ADDRESS || ''
-    const companyEmail = process.env.COMPANY_EMAIL || ''
+    const companyName = process.env.COMPANY_NAME || '株式会社○○カンパニー'
+    const companyAddress = process.env.COMPANY_ADDRESS || '〒XXX-XXXX\n東京都新宿区西新宿\n西新宿○○カンパニービル'
     const companyPhone = process.env.COMPANY_PHONE || ''
     const companyFax = process.env.COMPANY_FAX || ''
-    const companyInvoiceRegNo = process.env.COMPANY_INVOICE_REG_NO || ''
+    const companyEmail = process.env.COMPANY_EMAIL || ''
+    const companyContact = process.env.COMPANY_CONTACT || ''
 
     // Excelワークブックを作成
     const workbook = new ExcelJS.Workbook()
     const worksheet = workbook.addWorksheet('請求書')
 
-    // 列幅を設定（より広いレイアウト用）
+    // 列幅を設定
     worksheet.columns = [
       { width: 8 },   // A: No.
       { width: 35 },  // B: 項目
@@ -85,87 +85,116 @@ export async function GET(
     worksheet.mergeCells('A1:E1')
     titleRow.getCell(1).style = titleStyle
 
-    // 請求書番号と日付（右上）
-    const invoiceNoRow = worksheet.addRow([])
-    invoiceNoRow.getCell(4).value = `請求No ${invoice.id.substring(0, 10)}`
-    invoiceNoRow.getCell(4).style = { font: { size: 10 } }
-    worksheet.mergeCells('D2:E2')
-    
-    const invoiceDateRow = worksheet.addRow([])
-    invoiceDateRow.getCell(4).value = `請求日 ${dayjs(invoice.issueDate).format('YYYY年M月D日')}`
-    invoiceDateRow.getCell(4).style = { font: { size: 10 } }
-    worksheet.mergeCells('D3:E3')
-
-    // 発行元情報（右上）
-    const companyRow1 = worksheet.addRow([])
-    companyRow1.getCell(4).value = companyName
-    companyRow1.getCell(4).style = { font: { size: 11, bold: true } }
-    worksheet.mergeCells('D4:E4')
-
-    const companyRow2 = worksheet.addRow([])
-    if (companyAddress) {
-      companyRow2.getCell(4).value = companyAddress
-      companyRow2.getCell(4).style = { font: { size: 10 } }
-      worksheet.mergeCells('D5:E5')
-    }
-
-    const companyRow3 = worksheet.addRow([])
-    let contactInfo = ''
-    if (companyPhone) contactInfo += `TEL: ${companyPhone}`
-    if (companyFax) contactInfo += `  FAX: ${companyFax}`
-    if (companyEmail) contactInfo += `  E-Mail: ${companyEmail}`
-    if (contactInfo) {
-      companyRow3.getCell(4).value = contactInfo
-      companyRow3.getCell(4).style = { font: { size: 9 } }
-      worksheet.mergeCells('D6:E6')
-    }
-
-    // 請求先情報（左上）
-    let clientStartRow = 2
-    const clientRow1 = worksheet.getRow(clientStartRow)
+    // 請求先情報（左上）- 行2から開始
+    let currentRow = 2
+    const clientRow1 = worksheet.getRow(currentRow)
     clientRow1.getCell(1).value = `${invoice.clients.name} 御中`
     clientRow1.getCell(1).style = { font: { size: 11, bold: true } }
-    worksheet.mergeCells(`A${clientStartRow}:C${clientStartRow}`)
+    worksheet.mergeCells(`A${currentRow}:C${currentRow}`)
+    currentRow++
 
-    if (invoice.clients.address) {
-      clientStartRow++
-      const clientRow2 = worksheet.getRow(clientStartRow)
-      clientRow2.getCell(1).value = invoice.clients.address
-      clientRow2.getCell(1).style = { font: { size: 10 } }
-      worksheet.mergeCells(`A${clientStartRow}:C${clientStartRow}`)
+    const clientRow2 = worksheet.getRow(currentRow)
+    clientRow2.getCell(1).value = 'ご担当: ○○○○○ 様'
+    clientRow2.getCell(1).style = { font: { size: 10 } }
+    worksheet.mergeCells(`A${currentRow}:C${currentRow}`)
+    currentRow++
+
+    const clientRow3 = worksheet.getRow(currentRow)
+    clientRow3.getCell(1).value = '件名: ○○○○○○○○'
+    clientRow3.getCell(1).style = { font: { size: 10 } }
+    worksheet.mergeCells(`A${currentRow}:C${currentRow}`)
+    currentRow++
+
+    const requestRow = worksheet.getRow(currentRow)
+    requestRow.getCell(1).value = '下記の通り、御請求申し上げます。'
+    requestRow.getCell(1).style = { font: { size: 10 } }
+    worksheet.mergeCells(`A${currentRow}:C${currentRow}`)
+    currentRow++
+
+    // 請求書番号と日付（右上）- 行2から開始
+    let rightRow = 2
+    const invoiceNoRow = worksheet.getRow(rightRow)
+    invoiceNoRow.getCell(4).value = `請求No ${invoice.id.substring(0, 10)}`
+    invoiceNoRow.getCell(4).style = { font: { size: 10 }, alignment: { horizontal: 'right', vertical: 'middle' } }
+    worksheet.mergeCells(`D${rightRow}:E${rightRow}`)
+    rightRow++
+
+    const invoiceDateRow = worksheet.getRow(rightRow)
+    invoiceDateRow.getCell(4).value = `請求日 ${dayjs(invoice.issueDate).format('YYYY年M月D日')}`
+    invoiceDateRow.getCell(4).style = { font: { size: 10 }, alignment: { horizontal: 'right', vertical: 'middle' } }
+    worksheet.mergeCells(`D${rightRow}:E${rightRow}`)
+    rightRow++
+
+    // 発行元情報（右上）
+    const companyRow1 = worksheet.getRow(rightRow)
+    companyRow1.getCell(4).value = companyName
+    companyRow1.getCell(4).style = { font: { size: 11, bold: true }, alignment: { horizontal: 'right', vertical: 'middle' } }
+    worksheet.mergeCells(`D${rightRow}:E${rightRow}`)
+    rightRow++
+
+    if (companyAddress) {
+      const addressLines = companyAddress.split('\n')
+      addressLines.forEach((line) => {
+        const companyRow = worksheet.getRow(rightRow)
+        companyRow.getCell(4).value = line
+        companyRow.getCell(4).style = { font: { size: 10 }, alignment: { horizontal: 'right', vertical: 'middle' } }
+        worksheet.mergeCells(`D${rightRow}:E${rightRow}`)
+        rightRow++
+      })
     }
 
-    if (invoice.clients.email) {
-      clientStartRow++
-      const clientRow3 = worksheet.getRow(clientStartRow)
-      clientRow3.getCell(1).value = invoice.clients.email
-      clientRow3.getCell(1).style = { font: { size: 10 } }
-      worksheet.mergeCells(`A${clientStartRow}:C${clientStartRow}`)
+    if (companyPhone) {
+      const companyRow = worksheet.getRow(rightRow)
+      companyRow.getCell(4).value = `TEL: ${companyPhone}`
+      companyRow.getCell(4).style = { font: { size: 9 }, alignment: { horizontal: 'right', vertical: 'middle' } }
+      worksheet.mergeCells(`D${rightRow}:E${rightRow}`)
+      rightRow++
     }
 
-    if (invoice.clients.invoiceRegNo) {
-      clientStartRow++
-      const clientRow4 = worksheet.getRow(clientStartRow)
-      clientRow4.getCell(1).value = `適格請求書発行事業者番号: ${invoice.clients.invoiceRegNo}`
-      clientRow4.getCell(1).style = { font: { size: 9 } }
-      worksheet.mergeCells(`A${clientStartRow}:C${clientStartRow}`)
+    if (companyFax) {
+      const companyRow = worksheet.getRow(rightRow)
+      companyRow.getCell(4).value = `FAX: ${companyFax}`
+      companyRow.getCell(4).style = { font: { size: 9 }, alignment: { horizontal: 'right', vertical: 'middle' } }
+      worksheet.mergeCells(`D${rightRow}:E${rightRow}`)
+      rightRow++
     }
 
-    // 件名と支払期限
-    const subjectRowNum = Math.max(clientStartRow, 6) + 1
-    const subjectRow = worksheet.getRow(subjectRowNum)
-    subjectRow.getCell(1).value = '下記の通り、御請求申し上げます。'
-    subjectRow.getCell(1).style = { font: { size: 10 } }
-    worksheet.mergeCells(`A${subjectRowNum}:C${subjectRowNum}`)
+    if (companyEmail) {
+      const companyRow = worksheet.getRow(rightRow)
+      companyRow.getCell(4).value = `E-Mail: ${companyEmail}`
+      companyRow.getCell(4).style = { font: { size: 9 }, alignment: { horizontal: 'right', vertical: 'middle' } }
+      worksheet.mergeCells(`D${rightRow}:E${rightRow}`)
+      rightRow++
+    }
 
-    const dueDateRowNum = subjectRowNum
-    const dueDateRow = worksheet.getRow(dueDateRowNum)
-    dueDateRow.getCell(4).value = `お支払期限: ${dayjs(invoice.dueDate).format('YYYY年M月D日')}`
-    dueDateRow.getCell(4).style = { font: { size: 10 } }
-    worksheet.mergeCells(`D${dueDateRowNum}:E${dueDateRowNum}`)
+    if (companyContact) {
+      const companyRow = worksheet.getRow(rightRow)
+      companyRow.getCell(4).value = `担当者: ${companyContact}`
+      companyRow.getCell(4).style = { font: { size: 9 }, alignment: { horizontal: 'right', vertical: 'middle' } }
+      worksheet.mergeCells(`D${rightRow}:E${rightRow}`)
+      rightRow++
+    }
+
+    // 支払期限と振込先（左側）
+    const paymentRow = Math.max(currentRow, rightRow) + 1
+    const dueDateRow = worksheet.getRow(paymentRow)
+    dueDateRow.getCell(1).value = `お支払期限: ${dayjs(invoice.dueDate).format('YYYY年M月D日')}`
+    dueDateRow.getCell(1).style = { font: { size: 10 } }
+    worksheet.mergeCells(`A${paymentRow}:C${paymentRow}`)
+
+    // 合計金額（右側）
+    dueDateRow.getCell(4).value = '合計金額:'
+    dueDateRow.getCell(4).style = { font: { size: 10 }, alignment: { horizontal: 'right', vertical: 'middle' } }
+    dueDateRow.getCell(5).value = `¥${invoice.totalYen.toLocaleString()}`
+    dueDateRow.getCell(5).style = { font: { size: 20, bold: true }, alignment: { horizontal: 'right', vertical: 'middle' } }
+    dueDateRow.getCell(5).numFmt = '#,##0'
+
+    const taxIncludedRow = worksheet.getRow(paymentRow + 1)
+    taxIncludedRow.getCell(5).value = '(税込)'
+    taxIncludedRow.getCell(5).style = { font: { size: 9 }, alignment: { horizontal: 'right', vertical: 'middle' } }
 
     // 振込先情報
-    let nextRow = subjectRowNum + 1
+    let nextRow = paymentRow + 2
     if (invoice.bankAccount) {
       const bankRow1 = worksheet.getRow(nextRow)
       bankRow1.getCell(1).value = 'お振込先:'
@@ -186,6 +215,7 @@ export async function GET(
     // 明細テーブルのヘッダー
     const headerRow = worksheet.getRow(nextRow)
     headerRow.values = ['No.', '項目', '数量', '単価', '金額']
+    headerRow.height = 25
     headerRow.eachCell((cell, colNumber) => {
       cell.style = headerStyle
       if (colNumber === 1) {
@@ -222,7 +252,7 @@ export async function GET(
     // 空行
     itemRowNum++
 
-    // 合計金額セクション（右側）
+    // サマリーセクション（右下）
     const subtotalRow = worksheet.getRow(itemRowNum)
     subtotalRow.getCell(4).value = '小計'
     subtotalRow.getCell(4).style = { ...cellStyle, font: { size: 10 } }
@@ -241,34 +271,37 @@ export async function GET(
     itemRowNum++
     const totalRow = worksheet.getRow(itemRowNum)
     totalRow.getCell(4).value = '合計金額'
-    totalRow.getCell(4).style = { ...cellStyle, font: { size: 12, bold: true } }
+    totalRow.getCell(4).style = { ...cellStyle, font: { size: 12, bold: true }, border: {
+      top: { style: 'medium' as const },
+      bottom: { style: 'thin' as const },
+      left: { style: 'thin' as const },
+      right: { style: 'thin' as const },
+    } }
     totalRow.getCell(5).value = invoice.totalYen
-    totalRow.getCell(5).style = { ...rightAlignStyle, font: { size: 12, bold: true } }
+    totalRow.getCell(5).style = { ...rightAlignStyle, font: { size: 12, bold: true }, border: {
+      top: { style: 'medium' as const },
+      bottom: { style: 'thin' as const },
+      left: { style: 'thin' as const },
+      right: { style: 'thin' as const },
+    } }
     totalRow.getCell(5).numFmt = '#,##0'
 
-    // 合計金額の下に「(税込)」を追加
-    itemRowNum++
-    const taxIncludedRow = worksheet.getRow(itemRowNum)
-    taxIncludedRow.getCell(5).value = '(税込)'
-    taxIncludedRow.getCell(5).style = { ...rightAlignStyle, font: { size: 9 } }
-
-    // 備考欄
+    // 備考欄（左下）
     if (invoice.notes) {
-      itemRowNum += 2
-      const notesRow = worksheet.getRow(itemRowNum)
+      const notesStartRow = itemRowNum - 2
+      const notesRow = worksheet.getRow(notesStartRow)
       notesRow.getCell(1).value = '備考'
       notesRow.getCell(1).style = { ...cellStyle, font: { size: 10, bold: true }, fill: {
         type: 'pattern',
         pattern: 'solid',
         fgColor: { argb: 'FFE0E0E0' },
       } }
-      worksheet.mergeCells(`A${itemRowNum}:C${itemRowNum}`)
+      worksheet.mergeCells(`A${notesStartRow}:C${notesStartRow}`)
       
-      itemRowNum++
-      const notesContentRow = worksheet.getRow(itemRowNum)
+      const notesContentRow = worksheet.getRow(notesStartRow + 1)
       notesContentRow.getCell(1).value = invoice.notes
-      notesContentRow.getCell(1).style = cellStyle
-      worksheet.mergeCells(`A${itemRowNum}:E${itemRowNum}`)
+      notesContentRow.getCell(1).style = { ...cellStyle, alignment: { vertical: 'top' } }
+      worksheet.mergeCells(`A${notesStartRow + 1}:C${notesStartRow + 3}`)
     }
 
     // Excelファイルを生成
@@ -293,4 +326,3 @@ export async function GET(
     )
   }
 }
-

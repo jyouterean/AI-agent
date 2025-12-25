@@ -44,9 +44,16 @@ COMPANY_EMAIL="メールアドレス"
 COMPANY_INVOICE_REG_NO="適格請求書発行事業者番号"
 COMPANY_DEFAULT_TAX_RATE="0.1"
 COMPANY_DEFAULT_PAYMENT_TERM_DAYS="30"
+
+# Notion AI統合（オプション）
+NOTION_API_KEY="secret_..."
+NOTION_DATABASE_ID="..."
 ```
 
-**注意**: `OPENAI_API_KEY`は実際のAPIキーに置き換えてください。`.env`ファイルは`.gitignore`に含まれているため、Gitにコミットされません。
+**注意**: 
+- `OPENAI_API_KEY`は実際のAPIキーに置き換えてください
+- Notion AI統合を使用する場合は、`NOTION_API_KEY`と`NOTION_DATABASE_ID`を設定してください
+- `.env`ファイルは`.gitignore`に含まれているため、Gitにコミットされません
 
 ### 3. データベースのセットアップ
 
@@ -118,11 +125,19 @@ pnpm dev
 ### AIエージェントの使用
 
 1. `/agent` にアクセス
-2. 自然言語で指示を入力
+2. AIプロバイダーを選択（OpenAI / Notion API / Hybrid）
+3. 自然言語で指示を入力
    - 例: 「12/20にガソリン代 6500円、支出で登録して」
    - 例: 「A社に11月分の請求書作って。単価2万円×5日、消費税10%」
-3. AIが提案したアクションを確認
-4. 「承認して実行」ボタンで確定
+   - 例: 「この取引をNotionに保存して」（Notion API統合時）
+4. AIが提案したアクションを確認
+5. 「承認して実行」ボタンで確定
+
+#### AIプロバイダーの選択
+
+- **OpenAI**: GPT-4を使用した高精度なAI処理
+- **Notion API**: Notionデータベースへの保存・検索に特化
+- **Hybrid**: OpenAIの言語理解能力とNotion APIのデータ管理機能を組み合わせ（推奨）
 
 ## データモデル
 
@@ -166,6 +181,31 @@ pnpm dev
 - PDF生成はブラウザ上で行われます
 - AIエージェントのアクションは必ずユーザー承認後に実行されます
 - 開発環境ではSQLiteを使用しますが、本番環境ではPostgreSQLを推奨します
+- Notion AI統合を使用する場合は、Notion APIキーとデータベースIDが必要です
+- Hybridモードは、OpenAI APIキーとNotion APIキーの両方が必要です
+
+## Notion AI統合について
+
+このアプリケーションは、Notion AIを組み込むことで、エージェントの汎用性を高めています。
+
+### 主な機能
+
+1. **Notionへの自動保存**: 取引、請求書、顧客情報をNotionデータベースに自動保存
+2. **Notionからの検索**: 過去の取引や請求書情報をNotionから検索
+3. **ハイブリッドモード**: OpenAIの強力な言語理解能力とNotion APIのデータ管理機能を組み合わせ
+
+### セットアップ
+
+1. Notionでインテグレーションを作成し、APIキーを取得
+2. データベースを作成し、データベースIDを取得
+3. 環境変数に`NOTION_API_KEY`と`NOTION_DATABASE_ID`を設定
+4. AIエージェントページで「Hybrid」モードを選択
+
+### 使用例
+
+- 「この取引をNotionに保存して」
+- 「先月の請求書をNotionから検索して」
+- 「Notionに保存されている顧客情報を確認して」
 
 ## 今後の拡張予定
 
@@ -174,6 +214,7 @@ pnpm dev
 - データエクスポート（CSV/Excel）
 - メール送信機能
 - 請求書テンプレートのカスタマイズ
+- より高度なNotion AI統合機能
 
 ## ライセンス
 

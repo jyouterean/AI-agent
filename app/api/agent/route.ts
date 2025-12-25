@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import OpenAI from 'openai'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
+import { AIProviderFactory, ProviderType } from '@/lib/ai/provider-factory'
+import { AITool } from '@/lib/ai/providers/base'
 
 // 会社情報（カスタマイズ用）
 const companyInfo = {
@@ -63,11 +60,195 @@ const toolSchemas = {
     amountYen: z.number().int().positive().optional(),
     memo: z.string().optional(),
   }),
+  save_to_notion: z.object({
+    databaseId: z.string().min(1),
+    title: z.string().min(1),
+    content: z.string().optional(),
+    properties: z.record(z.any()).optional(),
+  }),
+  search_notion: z.object({
+    databaseId: z.string().min(1),
+    query: z.string().min(1),
+  }),
+}
+
+// ツール定義を生成
+function getTools(): AITool[] {
+  const tools: AITool[] = [
+    {
+      type: 'function',
+      function: {
+        name: 'create_transaction',
+        description: '取引（売上または支出）を登録します',
+        parameters: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', enum: ['income', 'expense'] },
+            date: { type: 'string', description: 'YYYY-MM-DD形式の日付' },
+            accountCategory: { type: 'string', description: '勘定科目（例: ガソリン代、売上、交通費）' },
+            partnerName: { type: 'string', description: '取引先名' },
+            amountYen: { type: 'number', description: '金額（円、整数）' },
+            memo: { type: 'string', description: 'メモ（任意）' },
+          },
+          required: ['type', 'date', 'accountCategory', 'partnerName', 'amountYen'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'create_invoice_draft',
+        description: '請求書の下書きを作成します',
+        parameters: {
+          type: 'object',
+          properties: {
+            clientName: { type: 'string', description: '顧客名' },
+            issueDate: { type: 'string', description: 'YYYY-MM-DD形式の発行日' },
+            dueDate: { type: 'string', description: 'YYYY-MM-DD形式の支払期限（任意、デフォルトは発行日+30日）' },
+            notes: { type: 'string', description: '備考（任意）' },
+            bankAccount: { type: 'string', description: '振込先（任意）' },
+          },
+          required: ['clientName', 'issueDate'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'add_invoice_item',
+        description: '請求書に明細を追加します',
+        parameters: {
+          type: 'object',
+          properties: {
+            invoiceId: { type: 'string', description: '請求書ID' },
+            description: { type: 'string', description: '明細名' },
+            quantity: { type: 'number', description: '数量' },
+            unitPriceYen: { type: 'number', description: '単価（円、整数）' },
+            taxRate: { type: 'number', description: '税率（0, 0.08, 0.1）' },
+          },
+          required: ['invoiceId', 'description', 'quantity', 'unitPriceYen', 'taxRate'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'search_client',
+        description: '顧客を検索します',
+        parameters: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: '顧客名（部分一致可）' },
+          },
+          required: ['name'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'create_client',
+        description: '新しい顧客を登録します',
+        parameters: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: '顧客名' },
+            email: { type: 'string', description: 'メールアドレス（任意）' },
+            address: { type: 'string', description: '住所（任意）' },
+            invoiceRegNo: { type: 'string', description: '適格請求書発行事業者番号（任意）' },
+          },
+          required: ['name'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'update_invoice_status',
+        description: '既存の請求書のステータスを更新します',
+        parameters: {
+          type: 'object',
+          properties: {
+            invoiceId: { type: 'string', description: '請求書ID' },
+            status: {
+              type: 'string',
+              enum: ['draft', 'sent', 'paid'],
+              description: '新しいステータス',
+            },
+          },
+          required: ['invoiceId', 'status'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'update_transaction',
+        description: '既存の取引を更新します',
+        parameters: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: '取引ID' },
+            type: { type: 'string', enum: ['income', 'expense'] },
+            date: { type: 'string', description: 'YYYY-MM-DD形式の日付' },
+            accountCategory: { type: 'string', description: '勘定科目' },
+            partnerName: { type: 'string', description: '取引先名' },
+            amountYen: { type: 'number', description: '金額（円、整数）' },
+            memo: { type: 'string', description: 'メモ（任意）' },
+          },
+          required: ['id'],
+        },
+      },
+    },
+  ]
+
+  // Notion APIが利用可能な場合、Notion関連のツールを追加
+  if (process.env.NOTION_API_KEY) {
+    tools.push(
+      {
+        type: 'function',
+        function: {
+          name: 'save_to_notion',
+          description: 'Notionデータベースに情報を保存します。取引、請求書、顧客情報などをNotionに記録できます。データベースIDが指定されていない場合は、環境変数NOTION_DATABASE_IDを使用します。',
+          parameters: {
+            type: 'object',
+            properties: {
+              databaseId: { type: 'string', description: 'NotionデータベースID（任意、デフォルトは環境変数から取得）' },
+              title: { type: 'string', description: 'ページタイトル' },
+              content: { type: 'string', description: 'ページの内容（任意）' },
+              properties: { type: 'object', description: 'データベースのプロパティ（任意）' },
+            },
+            required: ['title'],
+          },
+        },
+      },
+      {
+        type: 'function',
+        function: {
+          name: 'search_notion',
+          description: 'Notionデータベースから情報を検索します。過去の取引や請求書情報を検索できます。データベースIDが指定されていない場合は、環境変数NOTION_DATABASE_IDを使用します。',
+          parameters: {
+            type: 'object',
+            properties: {
+              databaseId: { type: 'string', description: 'NotionデータベースID（任意、デフォルトは環境変数から取得）' },
+              query: { type: 'string', description: '検索クエリ' },
+            },
+            required: ['query'],
+          },
+        },
+      }
+    )
+  }
+
+  return tools
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { messages, context } = await request.json()
+    const { messages, context, providerType } = await request.json()
+
+    // プロバイダータイプを決定
+    const selectedProvider: ProviderType = providerType || AIProviderFactory.getDefaultProvider()
 
     // コンテキスト情報を取得
     const recentTransactions = await prisma.transactions.findMany({
@@ -86,7 +267,8 @@ export async function POST(request: NextRequest) {
       include: { clients: true },
     })
 
-    const systemPrompt = `あなたは${companyInfo.name}の経理管理を支援するAIアシスタントです。
+    // システムプロンプトを構築
+    let systemPrompt = `あなたは${companyInfo.name}の経理管理を支援するAIアシスタントです。
 ユーザーの自然言語の指示を理解し、${companyInfo.name}の業務ルールに沿って適切なアクションを提案してください。
 
 利用可能なツール:
@@ -96,13 +278,23 @@ export async function POST(request: NextRequest) {
 4. search_client: 顧客を検索
 5. create_client: 新しい顧客を登録
 6. update_invoice_status: 請求書のステータスを更新
-7. update_transaction: 既存の取引を更新
+7. update_transaction: 既存の取引を更新`
+
+    // Notion APIが利用可能な場合、Notion関連の機能を追加
+    if (process.env.NOTION_API_KEY) {
+      systemPrompt += `
+8. save_to_notion: Notionデータベースに情報を保存（取引、請求書、顧客情報など）
+9. search_notion: Notionデータベースから情報を検索`
+    }
+
+    systemPrompt += `
 
 重要なルール:
 - 日付が指定されていない場合は、今日の日付を使用するか、ユーザーに確認する
 - 税率が指定されていない場合は、${companyInfo.defaultTaxRate * 100}% をデフォルトとする（ただし、ユーザーに確認する方が良い）
 - 顧客名が曖昧な場合は、search_clientで検索するか、ユーザーに確認する
 - すべてのアクションは「確定アクション」として返し、ユーザーが承認してから実行される
+- Notionへの保存や検索が必要な場合は、適切なツールを使用してください
 
 会社情報（回答時の文面や請求書作成時の前提として利用できます）:
 - 社名: ${companyInfo.name}
@@ -114,164 +306,55 @@ export async function POST(request: NextRequest) {
 
 現在のコンテキスト:
 - 直近の取引: ${JSON.stringify(recentTransactions.slice(0, 5).map(t => ({
-  type: t.type,
-  date: t.date,
-  partnerName: t.partnerName,
-  amountYen: t.amountYen,
-})))}
+      type: t.type,
+      date: t.date,
+      partnerName: t.partnerName,
+      amountYen: t.amountYen,
+    })))}
 - 顧客一覧: ${clients.map(c => c.name).join(', ')}
 - 直近の請求書: ${recentInvoices.slice(0, 3).map(inv => ({
-  id: inv.id,
-  client: inv.clients.name,
-  totalYen: inv.totalYen,
-  status: inv.status,
-}))}
+      id: inv.id,
+      client: inv.clients.name,
+      totalYen: inv.totalYen,
+      status: inv.status,
+    }))}
 
 日本語で自然に応答してください。`
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4-turbo-preview',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...messages,
-      ],
-      tools: [
-        {
-          type: 'function',
-          function: {
-            name: 'create_transaction',
-            description: '取引（売上または支出）を登録します',
-            parameters: {
-              type: 'object',
-              properties: {
-                type: { type: 'string', enum: ['income', 'expense'] },
-                date: { type: 'string', description: 'YYYY-MM-DD形式の日付' },
-                accountCategory: { type: 'string', description: '勘定科目（例: ガソリン代、売上、交通費）' },
-                partnerName: { type: 'string', description: '取引先名' },
-                amountYen: { type: 'number', description: '金額（円、整数）' },
-                memo: { type: 'string', description: 'メモ（任意）' },
-              },
-              required: ['type', 'date', 'accountCategory', 'partnerName', 'amountYen'],
-            },
-          },
-        },
-        {
-          type: 'function',
-          function: {
-            name: 'create_invoice_draft',
-            description: '請求書の下書きを作成します',
-            parameters: {
-              type: 'object',
-              properties: {
-                clientName: { type: 'string', description: '顧客名' },
-                issueDate: { type: 'string', description: 'YYYY-MM-DD形式の発行日' },
-                dueDate: { type: 'string', description: 'YYYY-MM-DD形式の支払期限（任意、デフォルトは発行日+30日）' },
-                notes: { type: 'string', description: '備考（任意）' },
-                bankAccount: { type: 'string', description: '振込先（任意）' },
-              },
-              required: ['clientName', 'issueDate'],
-            },
-          },
-        },
-        {
-          type: 'function',
-          function: {
-            name: 'add_invoice_item',
-            description: '請求書に明細を追加します',
-            parameters: {
-              type: 'object',
-              properties: {
-                invoiceId: { type: 'string', description: '請求書ID' },
-                description: { type: 'string', description: '明細名' },
-                quantity: { type: 'number', description: '数量' },
-                unitPriceYen: { type: 'number', description: '単価（円、整数）' },
-                taxRate: { type: 'number', description: '税率（0, 0.08, 0.1）' },
-              },
-              required: ['invoiceId', 'description', 'quantity', 'unitPriceYen', 'taxRate'],
-            },
-          },
-        },
-        {
-          type: 'function',
-          function: {
-            name: 'search_client',
-            description: '顧客を検索します',
-            parameters: {
-              type: 'object',
-              properties: {
-                name: { type: 'string', description: '顧客名（部分一致可）' },
-              },
-              required: ['name'],
-            },
-          },
-        },
-        {
-          type: 'function',
-          function: {
-            name: 'create_client',
-            description: '新しい顧客を登録します',
-            parameters: {
-              type: 'object',
-              properties: {
-                name: { type: 'string', description: '顧客名' },
-                email: { type: 'string', description: 'メールアドレス（任意）' },
-                address: { type: 'string', description: '住所（任意）' },
-                invoiceRegNo: { type: 'string', description: '適格請求書発行事業者番号（任意）' },
-              },
-              required: ['name'],
-            },
-          },
-        },
-        {
-          type: 'function',
-          function: {
-            name: 'update_invoice_status',
-            description: '既存の請求書のステータスを更新します',
-            parameters: {
-              type: 'object',
-              properties: {
-                invoiceId: { type: 'string', description: '請求書ID' },
-                status: {
-                  type: 'string',
-                  enum: ['draft', 'sent', 'paid'],
-                  description: '新しいステータス',
-                },
-              },
-              required: ['invoiceId', 'status'],
-            },
-          },
-        },
-        {
-          type: 'function',
-          function: {
-            name: 'update_transaction',
-            description: '既存の取引を更新します',
-            parameters: {
-              type: 'object',
-              properties: {
-                id: { type: 'string', description: '取引ID' },
-                type: { type: 'string', enum: ['income', 'expense'] },
-                date: { type: 'string', description: 'YYYY-MM-DD形式の日付' },
-                accountCategory: { type: 'string', description: '勘定科目' },
-                partnerName: { type: 'string', description: '取引先名' },
-                amountYen: { type: 'number', description: '金額（円、整数）' },
-                memo: { type: 'string', description: 'メモ（任意）' },
-              },
-              required: ['id'],
-            },
-          },
-        },
-      ],
-      tool_choice: 'auto',
+    // プロバイダーを作成
+    const provider = AIProviderFactory.createProvider(selectedProvider, {
+      apiKey: selectedProvider === 'openai' || selectedProvider === 'hybrid' 
+        ? process.env.OPENAI_API_KEY 
+        : process.env.NOTION_API_KEY,
+      model: process.env.OPENAI_MODEL || 'gpt-4-turbo-preview',
+      databaseId: process.env.NOTION_DATABASE_ID,
     })
 
-    const message = completion.choices[0].message
+    // ツールを取得
+    const tools = getTools()
 
-    // ツール呼び出しがある場合
-    if (message.tool_calls && message.tool_calls.length > 0) {
-      const toolCalls = message.tool_calls.map((call) => {
+    // ハイブリッドモードの場合、OpenAIを使用してNotion APIと連携
+    if (selectedProvider === 'hybrid') {
+      const completion = await provider.chatCompletion(
+        [
+          { role: 'system', content: systemPrompt },
+          ...messages,
+        ],
+        tools,
+        'auto'
+      )
+
+      const toolCalls = completion.toolCalls || []
+
+      // ツール呼び出しを検証
+      const validatedToolCalls = toolCalls.map((call) => {
         const functionName = call.function.name as keyof typeof toolSchemas
         const schema = toolSchemas[functionName]
+
+        if (!schema) {
+          console.error(`Unknown tool: ${functionName}`)
+          return null
+        }
 
         try {
           const args = JSON.parse(call.function.arguments)
@@ -279,7 +362,7 @@ export async function POST(request: NextRequest) {
 
           return {
             id: call.id,
-            type: 'function',
+            type: call.type,
             function: {
               name: functionName,
               arguments: validated,
@@ -293,16 +376,57 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({
         role: 'assistant',
-        content: message.content || '以下のアクションを実行しますか？',
-        toolCalls: toolCalls,
+        content: completion.content || '以下のアクションを実行しますか？',
+        toolCalls: validatedToolCalls,
+        provider: selectedProvider,
       })
     }
 
-    // 通常の応答
+    // 通常のプロバイダー（OpenAIまたはNotion）
+    const completion = await provider.chatCompletion(
+      [
+        { role: 'system', content: systemPrompt },
+        ...messages,
+      ],
+      tools,
+      'auto'
+    )
+
+    const toolCalls = completion.toolCalls || []
+
+    // ツール呼び出しを検証
+    const validatedToolCalls = toolCalls.map((call) => {
+      const functionName = call.function.name as keyof typeof toolSchemas
+      const schema = toolSchemas[functionName]
+
+      if (!schema) {
+        console.error(`Unknown tool: ${functionName}`)
+        return null
+      }
+
+      try {
+        const args = JSON.parse(call.function.arguments)
+        const validated = schema.parse(args)
+
+        return {
+          id: call.id,
+          type: call.type,
+          function: {
+            name: functionName,
+            arguments: validated,
+          },
+        }
+      } catch (error) {
+        console.error(`Validation error for ${functionName}:`, error)
+        return null
+      }
+    }).filter(Boolean)
+
     return NextResponse.json({
       role: 'assistant',
-      content: message.content,
-      toolCalls: [],
+      content: completion.content || (validatedToolCalls.length > 0 ? '以下のアクションを実行しますか？' : null),
+      toolCalls: validatedToolCalls,
+      provider: selectedProvider,
     })
   } catch (error) {
     console.error('Error in agent API:', error)
@@ -312,4 +436,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

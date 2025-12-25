@@ -31,6 +31,7 @@ export default function AgentPage() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [pendingActions, setPendingActions] = useState<PendingAction[]>([])
+  const [providerType, setProviderType] = useState<'openai' | 'notion' | 'hybrid'>('openai')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const scrollToBottom = () => {
@@ -62,6 +63,7 @@ export default function AgentPage() {
             role: m.role,
             content: m.content,
           })),
+          providerType,
         }),
       })
 
@@ -134,6 +136,20 @@ export default function AgentPage() {
           } else {
             successMessage += `\n\n該当する顧客が見つかりませんでした。`
           }
+        } else if (action.functionName === 'save_to_notion') {
+          if (result.data?.url) {
+            successMessage += `\n\nNotionページ: ${result.data.url}`
+          }
+        } else if (action.functionName === 'search_notion') {
+          const results = result.data?.results || []
+          if (results.length > 0) {
+            successMessage += `\n\n見つかった結果: ${results.length}件`
+            results.slice(0, 5).forEach((r: any) => {
+              successMessage += `\n- ${r.url || r.id}`
+            })
+          } else {
+            successMessage += `\n\n該当する結果が見つかりませんでした。`
+          }
         } else if (result.data?.id) {
           successMessage += ` ID: ${result.data.id}`
         }
@@ -179,6 +195,9 @@ export default function AgentPage() {
       create_client: '顧客の登録',
       update_invoice_status: '請求書ステータスの更新',
       update_transaction: '取引の更新',
+      save_to_notion: 'Notionに保存',
+      search_notion: 'Notionを検索',
+      'notion-sync': 'Notion同期',
     }
     return labels[functionName] || functionName
   }
@@ -202,6 +221,10 @@ export default function AgentPage() {
         return `取引更新: ID=${args.id}`
       case 'search_client':
         return `顧客検索: "${args.name}"`
+      case 'save_to_notion':
+        return `Notionに保存: ${args.title} (データベースID: ${args.databaseId})`
+      case 'search_notion':
+        return `Notion検索: "${args.query}" (データベースID: ${args.databaseId})`
       default:
         return JSON.stringify(args)
     }
@@ -209,7 +232,22 @@ export default function AgentPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-200px)]">
-      <h1 className="text-3xl font-bold mb-6">AIエージェント</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">AIエージェント</h1>
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium">AIプロバイダー:</label>
+          <select
+            value={providerType}
+            onChange={(e) => setProviderType(e.target.value as 'openai' | 'notion' | 'hybrid')}
+            className="border rounded px-3 py-1 text-sm"
+            disabled={loading}
+          >
+            <option value="openai">OpenAI</option>
+            <option value="notion">Notion API</option>
+            <option value="hybrid">Hybrid (OpenAI + Notion)</option>
+          </select>
+        </div>
+      </div>
 
       <div className="flex-1 bg-white rounded-lg shadow p-4 mb-4 overflow-y-auto">
         <div className="space-y-4">
