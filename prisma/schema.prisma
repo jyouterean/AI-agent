@@ -13,6 +13,8 @@ model clients {
   email        String?    @db.VarChar(255)
   address      String?
   invoiceRegNo String?    @db.VarChar(50)
+  createdBy    String?
+  updatedBy    String?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
   invoices     invoices[]
@@ -45,6 +47,8 @@ model invoices {
   totalYen      Int
   notes         String?
   bankAccount   String?         @db.VarChar(200)
+  createdBy     String?
+  updatedBy     String?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   invoice_items invoice_items[]
@@ -64,6 +68,8 @@ model transactions {
   amountYen       Int
   memo            String?
   attachmentUrl   String?  @db.VarChar(500)
+  createdBy       String?
+  updatedBy       String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
