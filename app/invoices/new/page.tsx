@@ -8,35 +8,37 @@ import dayjs from 'dayjs'
 interface Client {
   id: string
   name: string
+  address?: string
 }
 
 interface InvoiceItem {
   id: string
-  description: string
+  name: string
   quantity: number
-  unitPriceYen: number
-  amountYen: number
-  taxRate: number
+  unit_cost: number
+  tax_rate: number
 }
 
 export default function NewInvoicePage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [generating, setGenerating] = useState(false)
   const [clients, setClients] = useState<Client[]>([])
-  const [invoiceId, setInvoiceId] = useState<string | null>(null)
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  const [invoiceNumber, setInvoiceNumber] = useState<string>('')
   const [items, setItems] = useState<InvoiceItem[]>([])
   const [formData, setFormData] = useState({
     clientId: '',
     issueDate: dayjs().format('YYYY-MM-DD'),
     dueDate: dayjs().add(30, 'day').format('YYYY-MM-DD'),
     notes: '',
-    bankAccount: '',
+    logoUrl: '',
   })
   const [itemForm, setItemForm] = useState({
-    description: '',
+    name: '',
     quantity: '1',
-    unitPriceYen: '',
-    taxRate: '0.1',
+    unit_cost: '',
+    tax_rate: '0.1',
   })
 
   useEffect(() => {
@@ -50,122 +52,133 @@ export default function NewInvoicePage() {
       }
     }
     fetchClients()
+
+    // 請求書番号を自動生成（例: INV-YYYYMMDD-001）
+    const dateStr = dayjs().format('YYYYMMDD')
+    const randomNum = Math.floor(Math.random() * 1000).toString().padStart(3, '0')
+    setInvoiceNumber(`INV-${dateStr}-${randomNum}`)
   }, [])
 
-  const createInvoice = async () => {
-    if (!formData.clientId) {
-      alert('顧客を選択してください')
-      return
-    }
+  const selectedClient = clients.find((c) => c.id === formData.clientId)
 
-    setLoading(true)
-    try {
-      const res = await fetch('/api/invoices', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...formData,
-          status: 'draft',
-        }),
-      })
-
-      if (res.ok) {
-        const data = await res.json()
-        setInvoiceId(data.id)
-      } else {
-        const error = await res.json()
-        alert(`エラー: ${error.error || '請求書の作成に失敗しました'}`)
-      }
-    } catch (error) {
-      console.error('Error creating invoice:', error)
-      alert('請求書の作成に失敗しました')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const addItem = async () => {
-    if (!invoiceId) {
-      await createInvoice()
-      return
-    }
-
-    if (!itemForm.description || !itemForm.quantity || !itemForm.unitPriceYen) {
+  const addItem = () => {
+    if (!itemForm.name || !itemForm.quantity || !itemForm.unit_cost) {
       alert('明細の必須項目を入力してください')
       return
     }
 
-    try {
-      const res = await fetch(`/api/invoices/${invoiceId}/items`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...itemForm,
-          quantity: parseInt(itemForm.quantity),
-          unitPriceYen: parseInt(itemForm.unitPriceYen),
-          taxRate: parseFloat(itemForm.taxRate),
-        }),
-      })
-
-      if (res.ok) {
-        const newItem = await res.json()
-        setItems([...items, newItem])
-        setItemForm({
-          description: '',
-          quantity: '1',
-          unitPriceYen: '',
-          taxRate: '0.1',
-        })
-        // 請求書を再取得して合計を更新
-        const invoiceRes = await fetch(`/api/invoices/${invoiceId}`)
-        if (invoiceRes.ok) {
-          const invoice = await invoiceRes.json()
-          setItems(invoice.invoice_items)
-        }
-      } else {
-        const error = await res.json()
-        alert(`エラー: ${error.error || '明細の追加に失敗しました'}`)
-      }
-    } catch (error) {
-      console.error('Error adding item:', error)
-      alert('明細の追加に失敗しました')
+    const newItem: InvoiceItem = {
+      id: Date.now().toString(),
+      name: itemForm.name,
+      quantity: parseInt(itemForm.quantity),
+      unit_cost: parseInt(itemForm.unit_cost),
+      tax_rate: parseFloat(itemForm.tax_rate),
     }
+
+    setItems([...items, newItem])
+    setItemForm({
+      name: '',
+      quantity: '1',
+      unit_cost: '',
+      tax_rate: '0.1',
+    })
   }
 
-  const removeItem = async (itemId: string) => {
-    if (!invoiceId) return
-
-    try {
-      const res = await fetch(`/api/invoices/${invoiceId}/items/${itemId}`, {
-        method: 'DELETE',
-      })
-
-      if (res.ok) {
-        setItems(items.filter((item) => item.id !== itemId))
-        // 請求書を再取得して合計を更新
-        const invoiceRes = await fetch(`/api/invoices/${invoiceId}`)
-        if (invoiceRes.ok) {
-          const invoice = await invoiceRes.json()
-          setItems(invoice.invoice_items)
-        }
-      }
-    } catch (error) {
-      console.error('Error removing item:', error)
-      alert('明細の削除に失敗しました')
-    }
+  const removeItem = (itemId: string) => {
+    setItems(items.filter((item) => item.id !== itemId))
   }
 
   const calculateTotals = () => {
     let subtotal = 0
     let tax = 0
     for (const item of items) {
-      subtotal += item.amountYen
-      tax += Math.floor(item.amountYen * item.taxRate)
+      const itemSubtotal = item.quantity * item.unit_cost
+      subtotal += itemSubtotal
+      tax += Math.floor(itemSubtotal * item.tax_rate)
     }
     return { subtotal, tax, total: subtotal + tax }
   }
 
   const totals = calculateTotals()
+
+  const generatePDF = async () => {
+    if (!formData.clientId) {
+      alert('顧客を選択してください')
+      return
+    }
+
+    if (items.length === 0) {
+      alert('明細を最低1件追加してください')
+      return
+    }
+
+    if (!invoiceNumber) {
+      alert('請求書番号を入力してください')
+      return
+    }
+
+    setGenerating(true)
+    setPdfUrl(null)
+
+    try {
+      // 会社情報を取得（API経由で取得するか、クライアント側で取得）
+      // ここでは簡易的にAPI経由で取得
+      const companyRes = await fetch('/api/company-info')
+      let companyInfo
+      if (companyRes.ok) {
+        companyInfo = await companyRes.json()
+      } else {
+        // フォールバック
+        companyInfo = {
+          name: '株式会社サンプル',
+          address: '〒123-4567\n東京都新宿区\nサンプルビル',
+        }
+      }
+
+      // 税率を決定（すべてのアイテムが同じ税率ならその値、異なる場合は最初のアイテムの税率を使用）
+      const taxRate = items.length > 0 ? items[0].tax_rate : 0.1
+
+      // Invoice Generator APIへのリクエストデータを構築
+      const invoiceData = {
+        from: `${companyInfo.name}\n${companyInfo.address}`,
+        to: selectedClient
+          ? `${selectedClient.name}\n${selectedClient.address || ''}`
+          : '請求先情報未設定',
+        logo: formData.logoUrl || undefined,
+        number: invoiceNumber,
+        date: formData.issueDate,
+        due_date: formData.dueDate,
+        currency: 'JPY',
+        items: items.map((item) => ({
+          name: item.name,
+          quantity: item.quantity,
+          unit_cost: item.unit_cost,
+        })),
+        tax: taxRate,
+        notes: formData.notes || undefined,
+      }
+
+      // Invoice Generator APIを呼び出し
+      const res = await fetch('/api/invoice/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(invoiceData),
+      })
+
+      const result = await res.json()
+
+      if (result.success && result.pdf_url) {
+        setPdfUrl(result.pdf_url)
+      } else {
+        alert(`PDF生成エラー: ${result.message || '請求書PDFの生成に失敗しました'}`)
+      }
+    } catch (error) {
+      console.error('Error generating PDF:', error)
+      alert('請求書PDFの生成に失敗しました')
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   return (
     <div>
@@ -188,6 +201,18 @@ export default function NewInvoicePage() {
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">請求書番号 *</label>
+            <input
+              type="text"
+              value={invoiceNumber}
+              onChange={(e) => setInvoiceNumber(e.target.value)}
+              className="w-full border rounded px-3 py-2"
+              placeholder="例: INV-2024-001"
+              required
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -214,13 +239,13 @@ export default function NewInvoicePage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-1">振込先</label>
+            <label className="block text-sm font-medium mb-1">ロゴURL（任意）</label>
             <input
-              type="text"
-              value={formData.bankAccount}
-              onChange={(e) => setFormData({ ...formData, bankAccount: e.target.value })}
+              type="url"
+              value={formData.logoUrl}
+              onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
               className="w-full border rounded px-3 py-2"
-              placeholder="例: みずほ銀行 〇〇支店 普通 1234567"
+              placeholder="https://example.com/logo.png"
             />
           </div>
 
@@ -231,6 +256,7 @@ export default function NewInvoicePage() {
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               className="w-full border rounded px-3 py-2"
               rows={3}
+              placeholder="備考を入力してください"
             />
           </div>
         </div>
@@ -243,10 +269,10 @@ export default function NewInvoicePage() {
               <label className="block text-sm font-medium mb-1">明細名 *</label>
               <input
                 type="text"
-                value={itemForm.description}
-                onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })}
+                value={itemForm.name}
+                onChange={(e) => setItemForm({ ...itemForm, name: e.target.value })}
                 className="w-full border rounded px-3 py-2"
-                placeholder="例: 開発費"
+                placeholder="例: ウェブサイト開発"
               />
             </div>
             <div>
@@ -263,8 +289,8 @@ export default function NewInvoicePage() {
               <label className="block text-sm font-medium mb-1">単価（円） *</label>
               <input
                 type="number"
-                value={itemForm.unitPriceYen}
-                onChange={(e) => setItemForm({ ...itemForm, unitPriceYen: e.target.value })}
+                value={itemForm.unit_cost}
+                onChange={(e) => setItemForm({ ...itemForm, unit_cost: e.target.value })}
                 className="w-full border rounded px-3 py-2"
                 min="1"
               />
@@ -272,8 +298,8 @@ export default function NewInvoicePage() {
             <div>
               <label className="block text-sm font-medium mb-1">税率</label>
               <select
-                value={itemForm.taxRate}
-                onChange={(e) => setItemForm({ ...itemForm, taxRate: e.target.value })}
+                value={itemForm.tax_rate}
+                onChange={(e) => setItemForm({ ...itemForm, tax_rate: e.target.value })}
                 className="w-full border rounded px-3 py-2"
               >
                 <option value="0">0%</option>
@@ -306,23 +332,26 @@ export default function NewInvoicePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {items.map((item) => (
-                    <tr key={item.id}>
-                      <td className="px-4 py-2 text-sm">{item.description}</td>
-                      <td className="px-4 py-2 text-sm text-right">{item.quantity}</td>
-                      <td className="px-4 py-2 text-sm text-right">{item.unitPriceYen.toLocaleString()}円</td>
-                      <td className="px-4 py-2 text-sm text-right">{(item.taxRate * 100).toFixed(0)}%</td>
-                      <td className="px-4 py-2 text-sm text-right">{item.amountYen.toLocaleString()}円</td>
-                      <td className="px-4 py-2 text-sm">
-                        <button
-                          onClick={() => removeItem(item.id)}
-                          className="text-red-600 hover:underline"
-                        >
-                          削除
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {items.map((item) => {
+                    const itemTotal = item.quantity * item.unit_cost
+                    return (
+                      <tr key={item.id}>
+                        <td className="px-4 py-2 text-sm">{item.name}</td>
+                        <td className="px-4 py-2 text-sm text-right">{item.quantity}</td>
+                        <td className="px-4 py-2 text-sm text-right">{item.unit_cost.toLocaleString()}円</td>
+                        <td className="px-4 py-2 text-sm text-right">{(item.tax_rate * 100).toFixed(0)}%</td>
+                        <td className="px-4 py-2 text-sm text-right">{itemTotal.toLocaleString()}円</td>
+                        <td className="px-4 py-2 text-sm">
+                          <button
+                            onClick={() => removeItem(item.id)}
+                            className="text-red-600 hover:underline"
+                          >
+                            削除
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -330,7 +359,7 @@ export default function NewInvoicePage() {
         </div>
 
         {items.length > 0 && (
-          <div className="border-t pt-4">
+          <div className="border-t pt-4 mb-6">
             <div className="flex justify-end">
               <div className="w-64 space-y-2">
                 <div className="flex justify-between">
@@ -350,23 +379,40 @@ export default function NewInvoicePage() {
           </div>
         )}
 
+        {pdfUrl && (
+          <div className="border-t pt-6 mb-6">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <h3 className="font-bold text-green-800 mb-2">PDFが生成されました</h3>
+              <div className="flex gap-4">
+                <a
+                  href={pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                >
+                  PDFを表示
+                </a>
+                <a
+                  href={pdfUrl}
+                  download
+                  className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                >
+                  PDFをダウンロード
+                </a>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="flex gap-4 pt-6 border-t mt-6">
-          {invoiceId && (
-            <>
-              <Link
-                href={`/invoices/${invoiceId}`}
-                className="bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600"
-              >
-                保存して詳細へ
-              </Link>
-              <Link
-                href={`/invoices/${invoiceId}/pdf`}
-                className="bg-purple-500 text-white px-6 py-2 rounded hover:bg-purple-600"
-              >
-                PDFを表示
-              </Link>
-            </>
-          )}
+          <button
+            type="button"
+            onClick={generatePDF}
+            disabled={generating || items.length === 0 || !formData.clientId}
+            className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {generating ? 'PDF生成中...' : 'PDFを生成'}
+          </button>
           <button
             type="button"
             onClick={() => router.back()}
