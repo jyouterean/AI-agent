@@ -16,7 +16,6 @@ interface Task {
   tags: string[]
   createdAt: string
   updatedAt: string
-  url: string
 }
 
 const statusLabels: Record<string, string> = {
@@ -69,9 +68,6 @@ export default function TaskDetailPage() {
       } else {
         const error = await res.json()
         console.error('Error fetching task:', error)
-        if (error.error === 'Notion APIの設定が完了していません') {
-          alert(`⚠️ ${error.error}\n\n${error.message || '環境変数の設定を確認してください。'}`)
-        }
       }
     } catch (error) {
       console.error('Error fetching task:', error)
@@ -118,14 +114,6 @@ export default function TaskDetailPage() {
           >
             編集
           </Link>
-          <a
-            href={task.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
-          >
-            Notionで開く
-          </a>
           <button
             onClick={handleDelete}
             className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"

@@ -84,10 +84,7 @@ export default function EditTaskPage() {
         router.push(`/tasks/${id}`)
       } else {
         const error = await res.json()
-        const errorMessage = error.message
-          ? `${error.error}\n\n${error.message}`
-          : error.error || 'タスクの更新に失敗しました'
-        alert(errorMessage)
+        alert(error.error || 'タスクの更新に失敗しました')
       }
     } catch (error) {
       console.error('Error updating task:', error)

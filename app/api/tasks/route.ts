@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { NotionProvider } from '@/lib/ai/providers/notion'
+import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 
 // タスク作成スキーマ
@@ -8,7 +8,7 @@ const createTaskSchema = z.object({
   description: z.string().optional(),
   status: z.enum(['not_started', 'in_progress', 'completed', 'on_hold']).optional(),
   priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
-  dueDate: z.string().optional(),
+  dueDate: z.string().optional().transform((str) => (str ? new Date(str) : null)),
   assignee: z.string().optional(),
   tags: z.array(z.string()).optional(),
 })
@@ -16,60 +16,39 @@ const createTaskSchema = z.object({
 // GET: タスク一覧取得
 export async function GET(request: NextRequest) {
   try {
-    if (!process.env.NOTION_API_KEY || !process.env.NOTION_TASKS_DATABASE_ID) {
-      return NextResponse.json(
-        {
-          error: 'Notion APIの設定が完了していません',
-          message: 'タスク管理機能を使用するには、環境変数NOTION_API_KEYとNOTION_TASKS_DATABASE_IDの設定が必要です。Vercelの環境変数設定でこれらを追加してください。',
-        },
-        { status: 400 }
-      )
-    }
-
-    const notionProvider = new NotionProvider({
-      apiKey: process.env.NOTION_API_KEY,
-      databaseId: process.env.NOTION_TASKS_DATABASE_ID,
-    })
-
     const searchParams = request.nextUrl.searchParams
     const status = searchParams.get('status')
     const priority = searchParams.get('priority')
 
     // フィルターを構築
-    let filter: any = undefined
-    if (status || priority) {
-      filter = {
-        and: [
-          ...(status ? [{ property: 'Status', select: { equals: status } }] : []),
-          ...(priority ? [{ property: 'Priority', select: { equals: priority } }] : []),
-        ],
-      }
+    const where: any = {}
+    if (status) {
+      where.status = status
+    }
+    if (priority) {
+      where.priority = priority
     }
 
-    const results = await notionProvider.queryDatabase(
-      process.env.NOTION_TASKS_DATABASE_ID,
-      filter ? { filter } : undefined
-    )
-
-    // タスクデータを整形
-    const tasks = results.results.map((page: any) => {
-      const props = page.properties || {}
-      return {
-        id: page.id,
-        title: props.Title?.title?.[0]?.text?.content || '',
-        description: props.Description?.rich_text?.[0]?.text?.content || '',
-        status: props.Status?.select?.name || 'not_started',
-        priority: props.Priority?.select?.name || 'medium',
-        dueDate: props['Due Date']?.date?.start || null,
-        assignee: props.Assignee?.people?.[0]?.name || null,
-        tags: props.Tags?.multi_select?.map((tag: any) => tag.name) || [],
-        createdAt: page.created_time,
-        updatedAt: page.last_edited_time,
-        url: `https://notion.so/${page.id.replace(/-/g, '')}`,
-      }
+    const tasks = await prisma.tasks.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
     })
 
-    return NextResponse.json({ success: true, data: tasks })
+    // タスクデータを整形（tagsをJSONから配列に変換）
+    const formattedTasks = tasks.map((task) => ({
+      id: task.id,
+      title: task.title,
+      description: task.description || '',
+      status: task.status as 'not_started' | 'in_progress' | 'completed' | 'on_hold',
+      priority: task.priority as 'low' | 'medium' | 'high' | 'urgent',
+      dueDate: task.dueDate?.toISOString() || null,
+      assignee: task.assignee || null,
+      tags: task.tags ? JSON.parse(task.tags) : [],
+      createdAt: task.createdAt.toISOString(),
+      updatedAt: task.updatedAt.toISOString(),
+    }))
+
+    return NextResponse.json({ success: true, data: formattedTasks })
   } catch (error) {
     console.error('Error fetching tasks:', error)
     return NextResponse.json(
@@ -82,89 +61,34 @@ export async function GET(request: NextRequest) {
 // POST: タスク作成
 export async function POST(request: NextRequest) {
   try {
-    if (!process.env.NOTION_API_KEY || !process.env.NOTION_TASKS_DATABASE_ID) {
-      return NextResponse.json(
-        {
-          error: 'Notion APIの設定が完了していません',
-          message: 'タスク管理機能を使用するには、環境変数NOTION_API_KEYとNOTION_TASKS_DATABASE_IDの設定が必要です。Vercelの環境変数設定でこれらを追加してください。',
-        },
-        { status: 400 }
-      )
-    }
-
     const body = await request.json()
     const data = createTaskSchema.parse(body)
 
-    const notionProvider = new NotionProvider({
-      apiKey: process.env.NOTION_API_KEY,
-      databaseId: process.env.NOTION_TASKS_DATABASE_ID,
-    })
-
-    // Notionプロパティを構築
-    const properties: Record<string, any> = {
-      Title: {
-        title: [
-          {
-            text: {
-              content: data.title,
-            },
-          },
-        ],
+    const task = await prisma.tasks.create({
+      data: {
+        title: data.title,
+        description: data.description,
+        status: data.status || 'not_started',
+        priority: data.priority || 'medium',
+        dueDate: data.dueDate || null,
+        assignee: data.assignee,
+        tags: data.tags ? JSON.stringify(data.tags) : null,
       },
-    }
-
-    if (data.description) {
-      properties.Description = {
-        rich_text: [
-          {
-            text: {
-              content: data.description,
-            },
-          },
-        ],
-      }
-    }
-
-    if (data.status) {
-      properties.Status = {
-        select: {
-          name: data.status,
-        },
-      }
-    }
-
-    if (data.priority) {
-      properties.Priority = {
-        select: {
-          name: data.priority,
-        },
-      }
-    }
-
-    if (data.dueDate) {
-      properties['Due Date'] = {
-        date: {
-          start: data.dueDate,
-        },
-      }
-    }
-
-    if (data.tags && data.tags.length > 0) {
-      properties.Tags = {
-        multi_select: data.tags.map((tag) => ({ name: tag })),
-      }
-    }
-
-    const page = await notionProvider.createPage(process.env.NOTION_TASKS_DATABASE_ID, properties)
-
-    const pageUrl = `https://notion.so/${page.id.replace(/-/g, '')}`
+    })
 
     return NextResponse.json({
       success: true,
       data: {
-        id: page.id,
-        title: data.title,
-        url: pageUrl,
+        id: task.id,
+        title: task.title,
+        description: task.description,
+        status: task.status,
+        priority: task.priority,
+        dueDate: task.dueDate?.toISOString() || null,
+        assignee: task.assignee,
+        tags: task.tags ? JSON.parse(task.tags) : [],
+        createdAt: task.createdAt.toISOString(),
+        updatedAt: task.updatedAt.toISOString(),
       },
     })
   } catch (error) {
@@ -178,4 +102,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

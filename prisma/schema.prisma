@@ -70,3 +70,20 @@ model transactions {
   @@index([date])
   @@index([type])
 }
+
+model tasks {
+  id          String   @id @default(cuid())
+  title       String   @db.VarChar(200)
+  description String?
+  status      String   @db.VarChar(20) @default("not_started")
+  priority    String   @db.VarChar(20) @default("medium")
+  dueDate     DateTime?
+  assignee    String?  @db.VarChar(200)
+  tags        String?  // JSON配列として保存
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([priority])
+  @@index([dueDate])
+}

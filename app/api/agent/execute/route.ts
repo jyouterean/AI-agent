@@ -306,210 +306,83 @@ export async function POST(request: NextRequest) {
       }
 
       case 'create_task': {
-        if (!process.env.NOTION_API_KEY || !process.env.NOTION_TASKS_DATABASE_ID) {
-          return NextResponse.json(
-            {
-              error: 'Notion APIの設定が完了していません',
-              message: 'タスク管理機能を使用するには、環境変数NOTION_API_KEYとNOTION_TASKS_DATABASE_IDの設定が必要です。Vercelの環境変数設定でこれらを追加してください。',
-            },
-            { status: 400 }
-          )
-        }
-
         const taskSchema = z.object({
           title: z.string().min(1),
           description: z.string().optional(),
           status: z.enum(['not_started', 'in_progress', 'completed', 'on_hold']).optional(),
           priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
-          dueDate: z.string().optional(),
+          dueDate: z.string().optional().transform((str) => (str ? new Date(str) : null)),
           tags: z.array(z.string()).optional(),
         })
 
         const data = taskSchema.parse(params)
 
-        const notionProvider = new NotionProvider({
-          apiKey: process.env.NOTION_API_KEY,
-          databaseId: process.env.NOTION_TASKS_DATABASE_ID,
-        })
-
-        const properties: Record<string, any> = {
-          Title: {
-            title: [
-              {
-                text: {
-                  content: data.title,
-                },
-              },
-            ],
+        const task = await prisma.tasks.create({
+          data: {
+            title: data.title,
+            description: data.description,
+            status: data.status || 'not_started',
+            priority: data.priority || 'medium',
+            dueDate: data.dueDate || null,
+            tags: data.tags ? JSON.stringify(data.tags) : null,
           },
-        }
-
-        if (data.description) {
-          properties.Description = {
-            rich_text: [
-              {
-                text: {
-                  content: data.description,
-                },
-              },
-            ],
-          }
-        }
-
-        if (data.status) {
-          properties.Status = {
-            select: {
-              name: data.status,
-            },
-          }
-        }
-
-        if (data.priority) {
-          properties.Priority = {
-            select: {
-              name: data.priority,
-            },
-          }
-        }
-
-        if (data.dueDate) {
-          properties['Due Date'] = {
-            date: {
-              start: data.dueDate,
-            },
-          }
-        }
-
-        if (data.tags && data.tags.length > 0) {
-          properties.Tags = {
-            multi_select: data.tags.map((tag) => ({ name: tag })),
-          }
-        }
-
-        const page = await notionProvider.createPage(process.env.NOTION_TASKS_DATABASE_ID, properties)
-        const pageUrl = `https://notion.so/${page.id.replace(/-/g, '')}`
+        })
 
         return NextResponse.json({
           success: true,
           data: {
-            id: page.id,
-            title: data.title,
-            url: pageUrl,
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            status: task.status,
+            priority: task.priority,
+            dueDate: task.dueDate?.toISOString() || null,
+            tags: task.tags ? JSON.parse(task.tags) : [],
           },
         })
       }
 
       case 'update_task': {
-        if (!process.env.NOTION_API_KEY) {
-          return NextResponse.json(
-            { error: 'タスク管理機能を使用するには、Notion API keyの設定が必要です。環境変数NOTION_API_KEYを設定してください。' },
-            { status: 400 }
-          )
-        }
-
         const taskSchema = z.object({
           id: z.string().min(1),
           title: z.string().optional(),
           description: z.string().optional(),
           status: z.enum(['not_started', 'in_progress', 'completed', 'on_hold']).optional(),
           priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
-          dueDate: z.string().nullable().optional(),
+          dueDate: z.string().nullable().optional().transform((str) => (str ? new Date(str) : null)),
           tags: z.array(z.string()).optional(),
         })
 
         const data = taskSchema.parse(params)
 
-        const notionProvider = new NotionProvider({
-          apiKey: process.env.NOTION_API_KEY,
+        const updateData: any = {}
+        if (data.title !== undefined) updateData.title = data.title
+        if (data.description !== undefined) updateData.description = data.description
+        if (data.status !== undefined) updateData.status = data.status
+        if (data.priority !== undefined) updateData.priority = data.priority
+        if (data.dueDate !== undefined) updateData.dueDate = data.dueDate
+        if (data.tags !== undefined) updateData.tags = data.tags ? JSON.stringify(data.tags) : null
+
+        const task = await prisma.tasks.update({
+          where: { id: data.id },
+          data: updateData,
         })
 
-        const properties: Record<string, any> = {}
-
-        if (data.title !== undefined) {
-          properties.Title = {
-            title: [
-              {
-                text: {
-                  content: data.title,
-                },
-              },
-            ],
-          }
-        }
-
-        if (data.description !== undefined) {
-          if (data.description) {
-            properties.Description = {
-              rich_text: [
-                {
-                  text: {
-                    content: data.description,
-                  },
-                },
-              ],
-            }
-          } else {
-            properties.Description = {
-              rich_text: [],
-            }
-          }
-        }
-
-        if (data.status !== undefined) {
-          properties.Status = {
-            select: {
-              name: data.status,
-            },
-          }
-        }
-
-        if (data.priority !== undefined) {
-          properties.Priority = {
-            select: {
-              name: data.priority,
-            },
-          }
-        }
-
-        if (data.dueDate !== undefined) {
-          if (data.dueDate) {
-            properties['Due Date'] = {
-              date: {
-                start: data.dueDate,
-              },
-            }
-          } else {
-            properties['Due Date'] = {
-              date: null,
-            }
-          }
-        }
-
-        if (data.tags !== undefined) {
-          properties.Tags = {
-            multi_select: data.tags.map((tag) => ({ name: tag })),
-          }
-        }
-
-        await notionProvider.updatePage(data.id, properties)
-
-        return NextResponse.json({ success: true, data: { id: data.id } })
+        return NextResponse.json({
+          success: true,
+          data: {
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            status: task.status,
+            priority: task.priority,
+            dueDate: task.dueDate?.toISOString() || null,
+            tags: task.tags ? JSON.parse(task.tags) : [],
+          },
+        })
       }
 
       case 'search_task': {
-        if (!process.env.NOTION_API_KEY) {
-          return NextResponse.json(
-            { error: 'タスク管理機能を使用するには、Notion API keyの設定が必要です。環境変数NOTION_API_KEYを設定してください。' },
-            { status: 400 }
-          )
-        }
-        if (!process.env.NOTION_TASKS_DATABASE_ID) {
-          return NextResponse.json(
-            { error: 'タスク管理機能を使用するには、タスクデータベースIDの設定が必要です。環境変数NOTION_TASKS_DATABASE_IDを設定してください。' },
-            { status: 400 }
-          )
-        }
-
         const searchSchema = z.object({
           query: z.string().optional(),
           status: z.enum(['not_started', 'in_progress', 'completed', 'on_hold']).optional(),
@@ -518,64 +391,41 @@ export async function POST(request: NextRequest) {
 
         const data = searchSchema.parse(params)
 
-        const notionProvider = new NotionProvider({
-          apiKey: process.env.NOTION_API_KEY,
-          databaseId: process.env.NOTION_TASKS_DATABASE_ID,
-        })
-
-        let filter: any = undefined
-        if (data.status || data.priority) {
-          filter = {
-            and: [
-              ...(data.status ? [{ property: 'Status', select: { equals: data.status } }] : []),
-              ...(data.priority ? [{ property: 'Priority', select: { equals: data.priority } }] : []),
-            ],
-          }
+        // フィルターを構築
+        const where: any = {}
+        if (data.status) {
+          where.status = data.status
+        }
+        if (data.priority) {
+          where.priority = data.priority
+        }
+        if (data.query) {
+          where.title = { contains: data.query, mode: 'insensitive' }
         }
 
-        const results = await notionProvider.queryDatabase(
-          process.env.NOTION_TASKS_DATABASE_ID,
-          filter ? { filter } : undefined
-        )
+        const tasks = await prisma.tasks.findMany({
+          where,
+          orderBy: { createdAt: 'desc' },
+        })
 
         // タスクデータを整形
-        interface TaskResult {
-          id: string
-          title: string
-          description: string
-          status: string
-          priority: string
-          dueDate: string | null
-          tags: string[]
-          url: string
-        }
-
-        let tasks: TaskResult[] = results.results.map((page: any) => {
-          const props = page.properties || {}
-          return {
-            id: page.id,
-            title: props.Title?.title?.[0]?.text?.content || '',
-            description: props.Description?.rich_text?.[0]?.text?.content || '',
-            status: props.Status?.select?.name || 'not_started',
-            priority: props.Priority?.select?.name || 'medium',
-            dueDate: props['Due Date']?.date?.start || null,
-            tags: props.Tags?.multi_select?.map((tag: any) => tag.name) || [],
-            url: `https://notion.so/${page.id.replace(/-/g, '')}`,
-          }
-        })
-
-        // クエリでタイトルをフィルタリング
-        if (data.query) {
-          tasks = tasks.filter((task: TaskResult) =>
-            task.title.toLowerCase().includes(data.query!.toLowerCase())
-          )
-        }
+        const formattedTasks = tasks.map((task) => ({
+          id: task.id,
+          title: task.title,
+          description: task.description || '',
+          status: task.status,
+          priority: task.priority,
+          dueDate: task.dueDate?.toISOString() || null,
+          tags: task.tags ? JSON.parse(task.tags) : [],
+          createdAt: task.createdAt.toISOString(),
+          updatedAt: task.updatedAt.toISOString(),
+        }))
 
         return NextResponse.json({
           success: true,
           data: {
-            results: tasks,
-            count: tasks.length,
+            results: formattedTasks,
+            count: formattedTasks.length,
           },
         })
       }
