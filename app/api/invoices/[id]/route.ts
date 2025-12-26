@@ -12,11 +12,12 @@ const invoiceUpdateSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const invoice = await prisma.invoices.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         clients: true,
         invoice_items: true,
@@ -36,14 +37,15 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const data = invoiceUpdateSchema.parse(body)
 
     const invoice = await prisma.invoices.update({
-      where: { id: params.id },
+      where: { id },
       data,
       include: {
         clients: true,
@@ -66,11 +68,12 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     await prisma.invoices.delete({
-      where: { id: params.id },
+      where: { id },
     })
 
     return NextResponse.json({ success: true })

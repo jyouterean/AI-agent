@@ -14,11 +14,12 @@ const transactionSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const transaction = await prisma.transactions.findUnique({
-      where: { id: params.id },
+      where: { id },
     })
 
     if (!transaction) {
@@ -34,9 +35,10 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const data = transactionSchema.parse(body)
 
@@ -46,7 +48,7 @@ export async function PATCH(
     }
 
     const transaction = await prisma.transactions.update({
-      where: { id: params.id },
+      where: { id },
       data: updateData,
     })
 
@@ -65,11 +67,12 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     await prisma.transactions.delete({
-      where: { id: params.id },
+      where: { id },
     })
 
     return NextResponse.json({ success: true })

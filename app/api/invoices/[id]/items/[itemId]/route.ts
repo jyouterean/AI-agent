@@ -11,9 +11,10 @@ const itemUpdateSchema = z.object({
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string; itemId: string } }
+  { params }: { params: Promise<{ id: string; itemId: string }> }
 ) {
   try {
+    const { id, itemId } = await params
     const body = await request.json()
     const data = itemUpdateSchema.parse(body)
 
@@ -21,25 +22,25 @@ export async function PATCH(
     if (updateData.quantity !== undefined && updateData.unitPriceYen !== undefined) {
       updateData.amountYen = updateData.quantity * updateData.unitPriceYen
     } else if (updateData.quantity !== undefined) {
-      const item = await prisma.invoice_items.findUnique({ where: { id: params.itemId } })
+      const item = await prisma.invoice_items.findUnique({ where: { id: itemId } })
       if (item) {
         updateData.amountYen = updateData.quantity * item.unitPriceYen
       }
     } else if (updateData.unitPriceYen !== undefined) {
-      const item = await prisma.invoice_items.findUnique({ where: { id: params.itemId } })
+      const item = await prisma.invoice_items.findUnique({ where: { id: itemId } })
       if (item) {
         updateData.amountYen = item.quantity * updateData.unitPriceYen
       }
     }
 
     const item = await prisma.invoice_items.update({
-      where: { id: params.itemId },
+      where: { id: itemId },
       data: updateData,
     })
 
     // 請求書の合計を再計算
     const invoice = await prisma.invoices.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { invoice_items: true },
     })
 
@@ -55,7 +56,7 @@ export async function PATCH(
       }
 
       await prisma.invoices.update({
-        where: { id: params.id },
+        where: { id },
         data: {
           subtotalYen,
           taxYen,
@@ -79,16 +80,17 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; itemId: string } }
+  { params }: { params: Promise<{ id: string; itemId: string }> }
 ) {
   try {
+    const { id, itemId } = await params
     await prisma.invoice_items.delete({
-      where: { id: params.itemId },
+      where: { id: itemId },
     })
 
     // 請求書の合計を再計算
     const invoice = await prisma.invoices.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { invoice_items: true },
     })
 
@@ -104,7 +106,7 @@ export async function DELETE(
       }
 
       await prisma.invoices.update({
-        where: { id: params.id },
+        where: { id },
         data: {
           subtotalYen,
           taxYen,

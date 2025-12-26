@@ -11,9 +11,10 @@ const itemSchema = z.object({
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const data = itemSchema.parse(body)
 
@@ -22,7 +23,7 @@ export async function POST(
     // 明細を追加
     const item = await prisma.invoice_items.create({
       data: {
-        invoiceId: params.id,
+        invoiceId: id,
         ...data,
         amountYen,
         taxRate: data.taxRate as number,
@@ -31,7 +32,7 @@ export async function POST(
 
     // 請求書の合計を再計算
     const invoice = await prisma.invoices.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: { invoice_items: true },
     })
 
@@ -47,7 +48,7 @@ export async function POST(
       }
 
       await prisma.invoices.update({
-        where: { id: params.id },
+        where: { id },
         data: {
           subtotalYen,
           taxYen,
