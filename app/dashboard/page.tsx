@@ -89,6 +89,10 @@ export default function DashboardPage() {
   const [kpiData, setKpiData] = useState<KPIData | null>(null)
   const [chartData, setChartData] = useState<ChartData[]>([])
   const [tableData, setTableData] = useState<TableRow[]>([])
+  const [transactions, setTransactions] = useState<any[]>([])
+  const [invoices, setInvoices] = useState<any[]>([])
+  const [transactionSummary, setTransactionSummary] = useState<any>(null)
+  const [invoiceSummary, setInvoiceSummary] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [chartSettings, setChartSettings] = useState({
@@ -161,6 +165,64 @@ export default function DashboardPage() {
       setRefreshing(false)
     }
   }, [filterData, viewMode])
+
+  const fetchTransactionsAndInvoices = useCallback(async () => {
+    try {
+      // 取引データを取得
+      const [year, month] = filterData.targetMonth.split('/').map(Number)
+      const targetDate = dayjs().year(year).month(month - 1)
+      const monthStart = targetDate.startOf('month').toDate()
+      const monthEnd = targetDate.endOf('month').toDate()
+
+      const transactionsRes = await fetch(`/api/transactions?startDate=${monthStart.toISOString()}&endDate=${monthEnd.toISOString()}`, { cache: 'no-store' })
+      if (transactionsRes.ok) {
+        const transactionsData = await transactionsRes.json()
+        setTransactions(transactionsData.slice(0, 5)) // 最新5件
+
+        // 取引サマリーを計算
+        const incomeTotal = transactionsData
+          .filter((t: any) => t.type === 'income')
+          .reduce((sum: number, t: any) => sum + t.amountYen, 0)
+        const expenseTotal = transactionsData
+          .filter((t: any) => t.type === 'expense')
+          .reduce((sum: number, t: any) => sum + t.amountYen, 0)
+        setTransactionSummary({
+          total: transactionsData.length,
+          incomeTotal,
+          expenseTotal,
+          incomeCount: transactionsData.filter((t: any) => t.type === 'income').length,
+          expenseCount: transactionsData.filter((t: any) => t.type === 'expense').length,
+        })
+      }
+
+      // 請求書データを取得
+      const invoicesRes = await fetch('/api/invoices', { cache: 'no-store' })
+      if (invoicesRes.ok) {
+        const invoicesData = await invoicesRes.json()
+        setInvoices(invoicesData.slice(0, 5)) // 最新5件
+
+        // 請求書サマリーを計算
+        const draftCount = invoicesData.filter((inv: any) => inv.status === 'draft').length
+        const sentCount = invoicesData.filter((inv: any) => inv.status === 'sent').length
+        const paidCount = invoicesData.filter((inv: any) => inv.status === 'paid').length
+        const unpaidTotal = invoicesData
+          .filter((inv: any) => inv.status === 'sent')
+          .reduce((sum: number, inv: any) => sum + inv.totalYen, 0)
+        const totalAmount = invoicesData.reduce((sum: number, inv: any) => sum + inv.totalYen, 0)
+
+        setInvoiceSummary({
+          total: invoicesData.length,
+          draftCount,
+          sentCount,
+          paidCount,
+          unpaidTotal,
+          totalAmount,
+        })
+      }
+    } catch (error) {
+      console.error('Error fetching transactions and invoices:', error)
+    }
+  }, [filterData.targetMonth])
 
   useEffect(() => {
     fetchDashboardData()
@@ -673,6 +735,176 @@ export default function DashboardPage() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* 取引と請求書セクション */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* 取引セクション */}
+        <div className="bg-white rounded-lg shadow border">
+          <div className="p-4 border-b flex justify-between items-center">
+            <h2 className="text-lg font-bold">取引</h2>
+            <a
+              href="/transactions"
+              className="text-sm text-blue-600 hover:underline"
+            >
+              すべて見る →
+            </a>
+          </div>
+          <div className="p-4">
+            {transactionSummary && (
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="bg-gray-50 p-3 rounded">
+                  <div className="text-xs text-gray-600 mb-1">取引総数</div>
+                  <div className="text-xl font-bold">{transactionSummary.total}件</div>
+                </div>
+                <div className="bg-green-50 p-3 rounded">
+                  <div className="text-xs text-gray-600 mb-1">売上合計</div>
+                  <div className="text-xl font-bold text-green-600">
+                    {formatCurrency(transactionSummary.incomeTotal)}
+                  </div>
+                </div>
+                <div className="bg-red-50 p-3 rounded">
+                  <div className="text-xs text-gray-600 mb-1">支出合計</div>
+                  <div className="text-xl font-bold text-red-600">
+                    {formatCurrency(transactionSummary.expenseTotal)}
+                  </div>
+                </div>
+                <div className="bg-blue-50 p-3 rounded">
+                  <div className="text-xs text-gray-600 mb-1">差額</div>
+                  <div className={`text-xl font-bold ${
+                    transactionSummary.incomeTotal - transactionSummary.expenseTotal >= 0
+                      ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {formatCurrency(transactionSummary.incomeTotal - transactionSummary.expenseTotal)}
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-gray-700 mb-2">最近の取引</div>
+              {transactions.length > 0 ? (
+                <div className="space-y-2">
+                  {transactions.map((transaction) => (
+                    <div
+                      key={transaction.id}
+                      className="flex justify-between items-center p-2 hover:bg-gray-50 rounded border"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-xs px-2 py-1 rounded ${
+                              transaction.type === 'income'
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}
+                          >
+                            {transaction.type === 'income' ? '売上' : '支出'}
+                          </span>
+                          <span className="text-sm font-medium">{transaction.partnerName}</span>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {dayjs(transaction.date).format('YYYY年M月D日')} - {transaction.accountCategory}
+                        </div>
+                      </div>
+                      <div className={`text-sm font-bold ${
+                        transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {transaction.type === 'income' ? '+' : '-'}
+                        {formatCurrency(transaction.amountYen)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500 text-center py-4">取引がありません</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* 請求書セクション */}
+        <div className="bg-white rounded-lg shadow border">
+          <div className="p-4 border-b flex justify-between items-center">
+            <h2 className="text-lg font-bold">請求書</h2>
+            <a
+              href="/invoices"
+              className="text-sm text-blue-600 hover:underline"
+            >
+              すべて見る →
+            </a>
+          </div>
+          <div className="p-4">
+            {invoiceSummary && (
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="bg-gray-50 p-3 rounded">
+                  <div className="text-xs text-gray-600 mb-1">請求書総数</div>
+                  <div className="text-xl font-bold">{invoiceSummary.total}件</div>
+                </div>
+                <div className="bg-yellow-50 p-3 rounded">
+                  <div className="text-xs text-gray-600 mb-1">未回収額</div>
+                  <div className="text-xl font-bold text-yellow-600">
+                    {formatCurrency(invoiceSummary.unpaidTotal)}
+                  </div>
+                </div>
+                <div className="bg-blue-50 p-3 rounded">
+                  <div className="text-xs text-gray-600 mb-1">総請求額</div>
+                  <div className="text-xl font-bold text-blue-600">
+                    {formatCurrency(invoiceSummary.totalAmount)}
+                  </div>
+                </div>
+                <div className="bg-green-50 p-3 rounded">
+                  <div className="text-xs text-gray-600 mb-1">入金済</div>
+                  <div className="text-xl font-bold text-green-600">
+                    {invoiceSummary.paidCount}件
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="space-y-2">
+              <div className="text-sm font-medium text-gray-700 mb-2">最近の請求書</div>
+              {invoices.length > 0 ? (
+                <div className="space-y-2">
+                  {invoices.map((invoice) => (
+                    <div
+                      key={invoice.id}
+                      className="flex justify-between items-center p-2 hover:bg-gray-50 rounded border"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`text-xs px-2 py-1 rounded ${
+                              invoice.status === 'draft'
+                                ? 'bg-gray-100 text-gray-800'
+                                : invoice.status === 'sent'
+                                ? 'bg-yellow-100 text-yellow-800'
+                                : 'bg-green-100 text-green-800'
+                            }`}
+                          >
+                            {invoice.status === 'draft'
+                              ? '下書き'
+                              : invoice.status === 'sent'
+                              ? '送付済'
+                              : '入金済'}
+                          </span>
+                          <span className="text-sm font-medium">{invoice.clients.name}</span>
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {dayjs(invoice.issueDate).format('YYYY年M月D日')} 発行
+                          {invoice.dueDate && ` / 期限: ${dayjs(invoice.dueDate).format('M月D日')}`}
+                        </div>
+                      </div>
+                      <div className="text-sm font-bold text-blue-600">
+                        {formatCurrency(invoice.totalYen)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500 text-center py-4">請求書がありません</div>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
