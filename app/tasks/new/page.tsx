@@ -41,7 +41,10 @@ export default function NewTaskPage() {
         router.push(`/tasks/${data.data.id}`)
       } else {
         const error = await res.json()
-        alert(error.error || 'タスクの作成に失敗しました')
+        const errorMessage = error.message
+          ? `${error.error}\n\n${error.message}`
+          : error.error || 'タスクの作成に失敗しました'
+        alert(errorMessage)
       }
     } catch (error) {
       console.error('Error creating task:', error)

@@ -70,7 +70,11 @@ export default function TasksPage() {
         const data = await res.json()
         setTasks(data.data || [])
       } else {
-        console.error('Error fetching tasks:', res.statusText)
+        const error = await res.json()
+        console.error('Error fetching tasks:', error)
+        if (error.error === 'Notion APIの設定が完了していません') {
+          alert(`⚠️ ${error.error}\n\n${error.message || '環境変数の設定を確認してください。'}`)
+        }
       }
     } catch (error) {
       console.error('Error fetching tasks:', error)

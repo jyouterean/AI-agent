@@ -220,6 +220,9 @@ export default function AgentPage() {
         if (!res.ok) {
           const error = await res.json()
           let errorMessage = error.error || '実行に失敗しました'
+          if (error.message) {
+            errorMessage += '\n\n' + error.message
+          }
           if (error.details && Array.isArray(error.details)) {
             errorMessage +=
               '\n詳細: ' +

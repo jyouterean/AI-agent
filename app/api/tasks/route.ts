@@ -18,7 +18,10 @@ export async function GET(request: NextRequest) {
   try {
     if (!process.env.NOTION_API_KEY || !process.env.NOTION_TASKS_DATABASE_ID) {
       return NextResponse.json(
-        { error: 'Notion API key or Tasks Database ID is not configured' },
+        {
+          error: 'Notion APIの設定が完了していません',
+          message: 'タスク管理機能を使用するには、環境変数NOTION_API_KEYとNOTION_TASKS_DATABASE_IDの設定が必要です。Vercelの環境変数設定でこれらを追加してください。',
+        },
         { status: 400 }
       )
     }
@@ -81,7 +84,10 @@ export async function POST(request: NextRequest) {
   try {
     if (!process.env.NOTION_API_KEY || !process.env.NOTION_TASKS_DATABASE_ID) {
       return NextResponse.json(
-        { error: 'Notion API key or Tasks Database ID is not configured' },
+        {
+          error: 'Notion APIの設定が完了していません',
+          message: 'タスク管理機能を使用するには、環境変数NOTION_API_KEYとNOTION_TASKS_DATABASE_IDの設定が必要です。Vercelの環境変数設定でこれらを追加してください。',
+        },
         { status: 400 }
       )
     }

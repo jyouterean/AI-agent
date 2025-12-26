@@ -67,7 +67,11 @@ export default function TaskDetailPage() {
       } else if (res.status === 404) {
         router.push('/not-found')
       } else {
-        console.error('Error fetching task:', res.statusText)
+        const error = await res.json()
+        console.error('Error fetching task:', error)
+        if (error.error === 'Notion APIの設定が完了していません') {
+          alert(`⚠️ ${error.error}\n\n${error.message || '環境変数の設定を確認してください。'}`)
+        }
       }
     } catch (error) {
       console.error('Error fetching task:', error)
