@@ -10,6 +10,10 @@ export async function GET(request: NextRequest) {
     const searchParams = url.searchParams
     const targetMonth = searchParams.get('targetMonth') || dayjs().format('YYYY/MM')
     const viewMode = searchParams.get('viewMode') || 'monthly'
+    const dataA = searchParams.get('dataA') || 'initial_budget'
+    const dataB = searchParams.get('dataB') || 'actual'
+    const department = searchParams.get('department') || 'all'
+    const allocation = searchParams.get('allocation') || 'none'
 
     // 対象月を解析
     const [year, month] = targetMonth.split('/').map(Number)

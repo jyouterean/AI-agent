@@ -57,21 +57,44 @@ const COLORS = {
   actual: '#8b5cf6',
 }
 
+const STORAGE_KEY_FILTERS = 'dashboard_initial_filters'
+
 export default function DashboardPage() {
+  // 初期条件をlocalStorageから読み込む
+  const loadInitialFilters = () => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(STORAGE_KEY_FILTERS)
+      if (saved) {
+        try {
+          return JSON.parse(saved)
+        } catch (e) {
+          console.error('Error loading saved filters:', e)
+        }
+      }
+    }
+    // デフォルト値（現在の年月を対象月に設定）
+    const now = dayjs()
+    return {
+      dataA: 'initial_budget',
+      dataB: 'actual',
+      period: now.format('YYYY'),
+      targetMonth: now.format('YYYY/MM'),
+      department: 'all',
+      allocation: 'none',
+    }
+  }
+
   const [viewMode, setViewMode] = useState<'monthly' | 'cumulative'>('monthly')
-  const [filterData, setFilterData] = useState({
-    dataA: 'initial_budget',
-    dataB: 'actual',
-    period: '2024',
-    targetMonth: '2024/04',
-    department: 'all',
-    allocation: 'none',
-  })
+  const [filterData, setFilterData] = useState(loadInitialFilters)
   const [kpiData, setKpiData] = useState<KPIData | null>(null)
   const [chartData, setChartData] = useState<ChartData[]>([])
   const [tableData, setTableData] = useState<TableRow[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [chartSettings, setChartSettings] = useState({
+    showRevenue: true,
+    showOperatingProfit: true,
+  })
 
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -79,6 +102,10 @@ export default function DashboardPage() {
       const params = new URLSearchParams({
         targetMonth: filterData.targetMonth,
         viewMode: viewMode,
+        dataA: filterData.dataA,
+        dataB: filterData.dataB,
+        department: filterData.department,
+        allocation: filterData.allocation,
       })
       const res = await fetch(`/api/dashboard/management-report?${params.toString()}`, { cache: 'no-store' })
       
@@ -139,14 +166,74 @@ export default function DashboardPage() {
     fetchDashboardData()
   }, [fetchDashboardData])
 
+  // フィルター変更時に自動更新（対象月と表示モードのみ）
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!loading) {
+        fetchDashboardData()
+      }
+    }, 500) // デバウンス: 500ms待機
+
+    return () => clearTimeout(timer)
+  }, [filterData.targetMonth, viewMode])
+
   const handleApplyFilter = () => {
     setRefreshing(true)
     fetchDashboardData()
   }
 
   const handleSaveInitialConditions = () => {
-    // TODO: 初期条件の保存機能を実装
-    alert('初期条件を保存しました')
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(STORAGE_KEY_FILTERS, JSON.stringify(filterData))
+      alert('初期条件を保存しました')
+    }
+  }
+
+  // 対象月の選択肢を動的に生成（過去12ヶ月）
+  const generateMonthOptions = () => {
+    const options = []
+    const now = dayjs()
+    for (let i = 11; i >= 0; i--) {
+      const month = now.subtract(i, 'month')
+      options.push({
+        value: month.format('YYYY/MM'),
+        label: month.format('YYYY年M月'),
+      })
+    }
+    return options
+  }
+
+  const monthOptions = generateMonthOptions()
+
+  // グラフデータをエクスポート（CSV）
+  const handleExportChart = (format: 'csv' | 'excel') => {
+    if (chartData.length === 0) {
+      alert('エクスポートするデータがありません')
+      return
+    }
+
+    if (format === 'csv') {
+      const headers = ['月', '売上高（当初予算）', '売上高（実績）', '営業利益（当初予算）', '営業利益（実績）']
+      const rows = chartData.map((d) => [
+        d.month,
+        d.revenueBudget,
+        d.revenueActual,
+        d.operatingProfitBudget,
+        d.operatingProfitActual,
+      ])
+      const csvContent = [headers, ...rows].map((row) => row.join(',')).join('\n')
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `ダッシュボード_${dayjs().format('YYYYMMDD')}.csv`
+      link.click()
+      URL.revokeObjectURL(url)
+    } else {
+      // Excel形式のエクスポート（簡易版 - CSVとして出力）
+      alert('Excel形式のエクスポートは準備中です。現在はCSV形式でエクスポートされます。')
+      handleExportChart('csv')
+    }
   }
 
   const formatKPICurrency = (value: number) => {
@@ -287,8 +374,14 @@ export default function DashboardPage() {
               onChange={(e) => setFilterData({ ...filterData, period: e.target.value })}
               className="w-full border rounded px-3 py-2 text-sm"
             >
-              <option value="2024">2024年04月期</option>
-              <option value="2023">2023年04月期</option>
+              {Array.from({ length: 5 }, (_, i) => {
+                const year = dayjs().year() - i
+                return (
+                  <option key={year} value={year.toString()}>
+                    {year}年04月期
+                  </option>
+                )
+              })}
             </select>
           </div>
           <div>
@@ -298,9 +391,11 @@ export default function DashboardPage() {
               onChange={(e) => setFilterData({ ...filterData, targetMonth: e.target.value })}
               className="w-full border rounded px-3 py-2 text-sm"
             >
-              <option value="2024/04">2024/04</option>
-              <option value="2024/05">2024/05</option>
-              <option value="2024/06">2024/06</option>
+              {monthOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </div>
           <div>
@@ -377,8 +472,50 @@ export default function DashboardPage() {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-bold">予算 vs 実績</h2>
             <div className="flex gap-2">
-              <button className="text-gray-500 hover:text-gray-700 text-sm">📥</button>
-              <button className="text-gray-500 hover:text-gray-700 text-sm">⚙️</button>
+              <div className="relative group">
+                <button className="text-gray-500 hover:text-gray-700 text-sm">📥</button>
+                <div className="absolute right-0 top-full mt-1 bg-white border rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10">
+                  <button
+                    onClick={() => handleExportChart('csv')}
+                    className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-sm whitespace-nowrap"
+                  >
+                    CSVでエクスポート
+                  </button>
+                  <button
+                    onClick={() => handleExportChart('excel')}
+                    className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-sm whitespace-nowrap"
+                  >
+                    Excelでエクスポート
+                  </button>
+                </div>
+              </div>
+              <div className="relative group">
+                <button className="text-gray-500 hover:text-gray-700 text-sm">⚙️</button>
+                <div className="absolute right-0 top-full mt-1 bg-white border rounded-lg shadow-lg p-3 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-10 min-w-[200px]">
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={chartSettings.showRevenue}
+                        onChange={(e) =>
+                          setChartSettings({ ...chartSettings, showRevenue: e.target.checked })
+                        }
+                      />
+                      <span>売上高を表示</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={chartSettings.showOperatingProfit}
+                        onChange={(e) =>
+                          setChartSettings({ ...chartSettings, showOperatingProfit: e.target.checked })
+                        }
+                      />
+                      <span>営業利益を表示</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           {chartData.length > 0 ? (
@@ -389,10 +526,18 @@ export default function DashboardPage() {
                 <YAxis tickFormatter={(value) => `${(value / 10000).toFixed(0)}万`} />
                 <Tooltip formatter={(value: number | undefined) => value ? formatCurrency(value) : ''} />
                 <Legend />
-                <Bar dataKey="revenueBudget" fill={COLORS.budget} name="売上高（当初予算）" />
-                <Bar dataKey="revenueActual" fill={COLORS.actual} name="売上高（実績）" />
-                <Bar dataKey="operatingProfitBudget" fill={COLORS.budget} name="営業利益（当初予算）" />
-                <Bar dataKey="operatingProfitActual" fill={COLORS.actual} name="営業利益（実績）" />
+                {chartSettings.showRevenue && (
+                  <>
+                    <Bar dataKey="revenueBudget" fill={COLORS.budget} name="売上高（当初予算）" />
+                    <Bar dataKey="revenueActual" fill={COLORS.actual} name="売上高（実績）" />
+                  </>
+                )}
+                {chartSettings.showOperatingProfit && (
+                  <>
+                    <Bar dataKey="operatingProfitBudget" fill={COLORS.budget} name="営業利益（当初予算）" />
+                    <Bar dataKey="operatingProfitActual" fill={COLORS.actual} name="営業利益（実績）" />
+                  </>
+                )}
               </BarChart>
             </ResponsiveContainer>
           ) : (
