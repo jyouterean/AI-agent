@@ -66,6 +66,7 @@ export async function POST(request: NextRequest) {
     // ログイン操作を記録（ユーザーIDを直接渡す）
     try {
       await logAudit({
+        userId: user.id,
         action: 'login',
         entityType: 'user',
         entityId: user.id,
