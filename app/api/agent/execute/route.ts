@@ -398,7 +398,10 @@ export async function POST(request: NextRequest) {
 
       case 'update_task': {
         if (!process.env.NOTION_API_KEY) {
-          return NextResponse.json({ error: 'Notion API key is not configured' }, { status: 400 })
+          return NextResponse.json(
+            { error: 'タスク管理機能を使用するには、Notion API keyの設定が必要です。環境変数NOTION_API_KEYを設定してください。' },
+            { status: 400 }
+          )
         }
 
         const taskSchema = z.object({
@@ -491,9 +494,15 @@ export async function POST(request: NextRequest) {
       }
 
       case 'search_task': {
-        if (!process.env.NOTION_API_KEY || !process.env.NOTION_TASKS_DATABASE_ID) {
+        if (!process.env.NOTION_API_KEY) {
           return NextResponse.json(
-            { error: 'Notion API key or Tasks Database ID is not configured' },
+            { error: 'タスク管理機能を使用するには、Notion API keyの設定が必要です。環境変数NOTION_API_KEYを設定してください。' },
+            { status: 400 }
+          )
+        }
+        if (!process.env.NOTION_TASKS_DATABASE_ID) {
+          return NextResponse.json(
+            { error: 'タスク管理機能を使用するには、タスクデータベースIDの設定が必要です。環境変数NOTION_TASKS_DATABASE_IDを設定してください。' },
             { status: 400 }
           )
         }
