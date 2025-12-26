@@ -11,16 +11,20 @@ export interface AuditLogData {
 }
 
 // 操作ログを記録
-export async function logAudit(data: AuditLogData) {
+export async function logAudit(data: AuditLogData & { userId?: string }) {
   try {
-    const user = await getCurrentUser()
-    if (!user) {
-      return // ログインしていない場合は記録しない
+    let userId = data.userId
+    if (!userId) {
+      const user = await getCurrentUser()
+      if (!user) {
+        return // ログインしていない場合は記録しない
+      }
+      userId = user.id
     }
 
     await prisma.audit_logs.create({
       data: {
-        userId: user.id,
+        userId,
         action: data.action,
         entityType: data.entityType,
         entityId: data.entityId,

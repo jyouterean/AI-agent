@@ -37,15 +37,18 @@ export async function createSession(userId: string): Promise<string> {
 export async function getCurrentUser(): Promise<User | null> {
   try {
     const cookieStore = await cookies()
-    const sessionId = cookieStore.get(SESSION_COOKIE_NAME)?.value
+    const sessionValue = cookieStore.get(SESSION_COOKIE_NAME)?.value
 
-    if (!sessionId) {
+    if (!sessionValue) {
       return null
     }
 
-    // セッションIDからユーザーIDを取得（簡易実装）
-    // 実際にはセッションテーブルから取得する
-    const userId = sessionId.split('_')[1] // 簡易実装
+    // セッション値からユーザーIDを取得（形式: userId_sessionId）
+    const userId = sessionValue.split('_')[0]
+
+    if (!userId) {
+      return null
+    }
 
     const user = await prisma.users.findUnique({
       where: { id: userId },
