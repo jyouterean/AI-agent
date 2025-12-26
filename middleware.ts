@@ -3,7 +3,7 @@ import type { NextRequest } from 'next/server'
 
 // 認証チェックを一時的に無効化（開発用）
 // 本番環境では有効化してください
-const AUTH_ENABLED = false
+const AUTH_ENABLED = true
 
 // 認証不要なパス
 const publicPaths = ['/login', '/api/auth/login']

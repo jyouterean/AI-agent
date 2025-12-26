@@ -30,6 +30,9 @@ export default function RootLayout({
               <Link href="/users" className="hover:text-gray-300">従業員管理</Link>
             </div>
             <div className="flex items-center gap-4">
+              <Link href="/profile" className="text-sm hover:text-gray-300">
+                プロフィール
+              </Link>
               <span className="text-sm">合同会社Zentry</span>
               <form action="/api/auth/logout" method="POST">
                 <button type="submit" className="text-sm hover:text-gray-300">

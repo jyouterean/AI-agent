@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { logAudit } from '@/lib/audit'
 import { hashPassword } from '@/lib/auth'
+import { shouldSkipAuth } from '@/lib/auth-helper'
 import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
@@ -21,15 +22,18 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getCurrentUser()
-    if (!user) {
-      return NextResponse.json({ error: '認証されていません' }, { status: 401 })
+    let user = null
+    if (!shouldSkipAuth()) {
+      user = await getCurrentUser()
+      if (!user) {
+        return NextResponse.json({ error: '認証されていません' }, { status: 401 })
+      }
     }
 
     const { id } = await params
 
     // 管理者または本人のみアクセス可能
-    if (user.role !== 'admin' && user.id !== id) {
+    if (!shouldSkipAuth() && user && user.role !== 'admin' && user.id !== id) {
       return NextResponse.json({ error: '権限がありません' }, { status: 403 })
     }
 
@@ -67,9 +71,12 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getCurrentUser()
-    if (!user) {
-      return NextResponse.json({ error: '認証されていません' }, { status: 401 })
+    let user = null
+    if (!shouldSkipAuth()) {
+      user = await getCurrentUser()
+      if (!user) {
+        return NextResponse.json({ error: '認証されていません' }, { status: 401 })
+      }
     }
 
     const { id } = await params
@@ -77,12 +84,12 @@ export async function PATCH(
     const data = updateUserSchema.parse(body)
 
     // 管理者のみ更新可能（本人は一部のみ更新可能）
-    if (user.role !== 'admin' && user.id !== id) {
+    if (!shouldSkipAuth() && user && user.role !== 'admin' && user.id !== id) {
       return NextResponse.json({ error: '権限がありません' }, { status: 403 })
     }
 
     // 本人の場合はroleとisActiveは変更不可
-    if (user.id === id && user.role !== 'admin') {
+    if (!shouldSkipAuth() && user && user.id === id && user.role !== 'admin') {
       if (data.role !== undefined || data.isActive !== undefined) {
         return NextResponse.json(
           { error: '自分の権限やステータスは変更できません' },
@@ -114,14 +121,17 @@ export async function PATCH(
     })
 
     // 操作ログを記録
-    await logAudit({
-      action: 'update_user',
-      entityType: 'user',
-      entityId: id,
-      details: updateData,
-      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
-      userAgent: request.headers.get('user-agent') || undefined,
-    })
+    if (user) {
+      await logAudit({
+        userId: user.id,
+        action: 'update_user',
+        entityType: 'user',
+        entityId: id,
+        details: updateData,
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+      })
+    }
 
     return NextResponse.json({ success: true, data: updatedUser })
   } catch (error) {
@@ -148,18 +158,21 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const user = await getCurrentUser()
-    if (!user) {
-      return NextResponse.json({ error: '認証されていません' }, { status: 401 })
-    }
-    if (user.role !== 'admin') {
-      return NextResponse.json({ error: '権限がありません' }, { status: 403 })
+    let user = null
+    if (!shouldSkipAuth()) {
+      user = await getCurrentUser()
+      if (!user) {
+        return NextResponse.json({ error: '認証されていません' }, { status: 401 })
+      }
+      if (user.role !== 'admin') {
+        return NextResponse.json({ error: '権限がありません' }, { status: 403 })
+      }
     }
 
     const { id } = await params
 
     // 自分自身は削除できない
-    if (user.id === id) {
+    if (!shouldSkipAuth() && user && user.id === id) {
       return NextResponse.json(
         { error: '自分自身を削除することはできません' },
         { status: 400 }
@@ -179,14 +192,17 @@ export async function DELETE(
     })
 
     // 操作ログを記録
-    await logAudit({
-      action: 'delete_user',
-      entityType: 'user',
-      entityId: id,
-      details: { email: updatedUser.email, name: updatedUser.name },
-      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
-      userAgent: request.headers.get('user-agent') || undefined,
-    })
+    if (user) {
+      await logAudit({
+        userId: user.id,
+        action: 'delete_user',
+        entityType: 'user',
+        entityId: id,
+        details: { email: updatedUser.email, name: updatedUser.name },
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+      })
+    }
 
     return NextResponse.json({ success: true, data: updatedUser })
   } catch (error) {
