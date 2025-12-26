@@ -80,10 +80,46 @@ model tasks {
   dueDate     DateTime?
   assignee    String?  @db.VarChar(200)
   tags        String?  // JSON配列として保存
+  createdBy   String?  // 作成者ID
+  updatedBy   String?  // 更新者ID
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([status])
   @@index([priority])
   @@index([dueDate])
+}
+
+model users {
+  id            String       @id @default(cuid())
+  email         String       @unique @db.VarChar(255)
+  passwordHash  String       @db.VarChar(255)
+  name          String       @db.VarChar(200)
+  role          String       @db.VarChar(20) @default("employee") // admin, employee
+  isActive      Boolean      @default(true)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  createdBy     String?      // 作成者ID（管理者が作成）
+  audit_logs    audit_logs[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model audit_logs {
+  id          String   @id @default(cuid())
+  userId      String
+  action      String   @db.VarChar(100) // create_transaction, update_invoice, delete_client, etc.
+  entityType  String   @db.VarChar(50)   // transaction, invoice, client, task, etc.
+  entityId    String?  // 対象エンティティのID
+  details     String?  // JSON形式で詳細情報を保存
+  ipAddress   String?  @db.VarChar(50)
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  users       users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType])
+  @@index([createdAt])
 }

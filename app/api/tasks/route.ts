@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getCurrentUser } from '@/lib/auth'
+import { logAudit } from '@/lib/audit'
 import { z } from 'zod'
 
 // タスク作成スキーマ
@@ -61,6 +63,11 @@ export async function GET(request: NextRequest) {
 // POST: タスク作成
 export async function POST(request: NextRequest) {
   try {
+    const user = await getCurrentUser()
+    if (!user) {
+      return NextResponse.json({ error: '認証されていません' }, { status: 401 })
+    }
+
     const body = await request.json()
     const data = createTaskSchema.parse(body)
 
@@ -73,7 +80,18 @@ export async function POST(request: NextRequest) {
         dueDate: data.dueDate || null,
         assignee: data.assignee,
         tags: data.tags ? JSON.stringify(data.tags) : null,
+        createdBy: user.id,
       },
+    })
+
+    // 操作ログを記録
+    await logAudit({
+      action: 'create_task',
+      entityType: 'task',
+      entityId: task.id,
+      details: { title: task.title, status: task.status, priority: task.priority },
+      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
+      userAgent: request.headers.get('user-agent') || undefined,
     })
 
     return NextResponse.json({
