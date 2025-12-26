@@ -67,6 +67,10 @@ export async function GET(request: NextRequest) {
     const grossProfitBudget = Math.round(grossProfitActual * budgetRatio)
     const operatingProfitBudget = Math.round(operatingProfitActual * budgetRatio)
     const netProfitBudget = Math.round(netProfitActual * budgetRatio)
+    const grossProfitRateActual = revenueActual > 0 ? grossProfitActual / revenueActual : 0
+    const grossProfitRateBudget = revenueBudget > 0 ? grossProfitBudget / revenueBudget : 0
+    const operatingProfitRateActual = revenueActual > 0 ? operatingProfitActual / revenueActual : 0
+    const operatingProfitRateBudget = revenueBudget > 0 ? operatingProfitBudget / revenueBudget : 0
 
     // KPIデータ
     const kpiData = {
@@ -91,14 +95,14 @@ export async function GET(request: NextRequest) {
         difference: netProfitActual - netProfitBudget,
       },
       grossProfitRate: {
-        value: revenueActual > 0 ? grossProfitActual / revenueActual : 0,
-        budget: revenueBudget > 0 ? grossProfitBudget / revenueBudget : 0,
-        difference: revenueActual > 0 ? grossProfitActual / revenueActual : 0 - (revenueBudget > 0 ? grossProfitBudget / revenueBudget : 0),
+        value: grossProfitRateActual,
+        budget: grossProfitRateBudget,
+        difference: grossProfitRateActual - grossProfitRateBudget,
       },
       operatingProfitRate: {
-        value: revenueActual > 0 ? operatingProfitActual / revenueActual : 0,
-        budget: revenueBudget > 0 ? operatingProfitBudget / revenueBudget : 0,
-        difference: revenueActual > 0 ? operatingProfitActual / revenueActual : 0 - (revenueBudget > 0 ? operatingProfitBudget / revenueBudget : 0),
+        value: operatingProfitRateActual,
+        budget: operatingProfitRateBudget,
+        difference: operatingProfitRateActual - operatingProfitRateBudget,
       },
     }
 
