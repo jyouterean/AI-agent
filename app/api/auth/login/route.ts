@@ -20,10 +20,20 @@ export async function POST(request: NextRequest) {
       where: { email },
     })
 
-    if (!user || !user.isActive) {
-      console.log('Login failed: User not found or inactive', { email })
+    console.log('Login attempt:', { email, userFound: !!user, userActive: user?.isActive })
+
+    if (!user) {
+      console.log('Login failed: User not found', { email })
       return NextResponse.json(
         { error: 'メールアドレスまたはパスワードが正しくありません' },
+        { status: 401 }
+      )
+    }
+
+    if (!user.isActive) {
+      console.log('Login failed: User is inactive', { email, userId: user.id })
+      return NextResponse.json(
+        { error: 'このアカウントは無効化されています' },
         { status: 401 }
       )
     }
@@ -31,6 +41,8 @@ export async function POST(request: NextRequest) {
     // パスワードを検証
     const bcrypt = await import('bcryptjs')
     const isValid = await bcrypt.compare(password, user.passwordHash)
+
+    console.log('Password verification:', { email, isValid })
 
     if (!isValid) {
       console.log('Login failed: Invalid password', { email })
