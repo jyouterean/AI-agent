@@ -88,7 +88,7 @@ export default function DashboardPage() {
         // バックグラウンドで最新データを取得して更新
         setRefreshing(true)
         try {
-          const res = await fetch('/api/dashboard/stats?months=6')
+          const res = await fetch('/api/dashboard/stats?months=6', { cache: 'no-store' })
           if (res.ok) {
             const result = await res.json()
             const dashboardData = result.data
@@ -110,7 +110,7 @@ export default function DashboardPage() {
       } else {
         setLoading(true)
       }
-      const res = await fetch('/api/dashboard/stats?months=6')
+      const res = await fetch('/api/dashboard/stats?months=6', { cache: 'no-store' })
       if (res.ok) {
         const result = await res.json()
         const dashboardData = result.data
