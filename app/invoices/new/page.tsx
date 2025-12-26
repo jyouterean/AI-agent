@@ -201,45 +201,32 @@ export default function NewInvoicePage() {
         notes: formData.notes || undefined,
       }
 
-      // PDF生成APIを呼び出し（既存のreact-pdfを使用）
-      const pdfRes = await fetch('/api/invoice/pdf/generate', {
+      // Invoice Generator APIを呼び出し
+      const res = await fetch('/api/invoice/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientId: formData.clientId,
-          clientName: selectedClient?.name || '',
-          clientAddress: selectedClient?.address || '',
-          invoiceNumber: invoiceNumber,
-          issueDate: formData.issueDate,
-          dueDate: formData.dueDate,
-          items: items.map((item) => ({
-            name: item.name,
-            quantity: item.quantity,
-            unit_cost: item.unit_cost,
-            tax_rate: item.tax_rate,
-          })),
-          notes: formData.notes || undefined,
-        }),
+        body: JSON.stringify(invoiceData),
       })
 
-      let pdfResult
+      let result
       try {
-        pdfResult = await pdfRes.json()
+        result = await res.json()
       } catch (jsonError) {
         console.error('Failed to parse response as JSON:', jsonError)
-        const text = await pdfRes.text()
+        const text = await res.text()
         console.error('Response text:', text)
-        alert(`PDF生成エラー: サーバーからの応答の解析に失敗しました（ステータス: ${pdfRes.status}）`)
+        alert(`PDF生成エラー: サーバーからの応答の解析に失敗しました（ステータス: ${res.status}）`)
         return
       }
 
-      if (pdfResult.success && pdfResult.pdf_data_url) {
-        setPdfUrl(pdfResult.pdf_data_url)
+      if (result.success && result.pdf_url) {
+        setPdfUrl(result.pdf_url)
       } else {
-        const errorMessage = pdfResult.message || pdfResult.error || '請求書PDFの生成に失敗しました'
+        const errorMessage = result.message || result.error || '請求書PDFの生成に失敗しました'
         console.error('PDF generation error:', {
-          status: pdfRes.status,
-          result: pdfResult,
+          status: res.status,
+          result: result,
+          requestData: invoiceData,
         })
         alert(`PDF生成エラー: ${errorMessage}`)
       }

@@ -31,10 +31,10 @@ interface InvoiceGeneratorResponse {
 export async function POST(request: NextRequest) {
   try {
     // 環境変数のチェック
-    const apiKey = process.env.INVOICE_API_KEY
+    const apiKey = process.env.INVOICE_GENERATOR_API_KEY
     if (!apiKey) {
       return NextResponse.json(
-        { success: false, message: 'Invoice API key is not configured' },
+        { success: false, message: 'Invoice Generator API key is not configured' },
         { status: 500 }
       )
     }
