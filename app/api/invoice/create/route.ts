@@ -44,31 +44,76 @@ export async function POST(request: NextRequest) {
     const validatedData = invoiceCreateSchema.parse(body)
 
     // 外部APIへのリクエスト
-    const externalApiUrl = 'https://api.invoice-generator.com/v1/invoice'
+    const externalApiUrl = process.env.INVOICE_API_URL || 'https://api.invoice-generator.com/v1/invoice'
     
-    const response = await fetch(externalApiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(validatedData),
-    })
+    let response: Response
+    let responseData: InvoiceGeneratorResponse
 
-    const responseData: InvoiceGeneratorResponse = await response.json()
-
-    // 外部APIのレスポンスに基づいて処理
-    if (!response.ok || !responseData.success) {
+    try {
+      response = await fetch(externalApiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(validatedData),
+      })
+    } catch (fetchError) {
+      console.error('Error fetching invoice API:', fetchError)
       return NextResponse.json(
         {
           success: false,
-          message: responseData.message || 'Failed to generate invoice PDF',
+          message: `Failed to connect to invoice API: ${fetchError instanceof Error ? fetchError.message : 'Unknown error'}`,
+        },
+        { status: 500 }
+      )
+    }
+
+    // レスポンスのテキストを取得（JSONパース前にエラー内容を確認）
+    const responseText = await response.text()
+    
+    try {
+      responseData = JSON.parse(responseText)
+    } catch (parseError) {
+      console.error('Error parsing invoice API response:', parseError)
+      console.error('Response text:', responseText)
+      return NextResponse.json(
+        {
+          success: false,
+          message: `Invalid response from invoice API: ${responseText.substring(0, 200)}`,
+        },
+        { status: 500 }
+      )
+    }
+
+    // 外部APIのレスポンスに基づいて処理
+    if (!response.ok || !responseData.success) {
+      console.error('Invoice API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        response: responseData,
+      })
+      return NextResponse.json(
+        {
+          success: false,
+          message: responseData.message || `Failed to generate invoice PDF (Status: ${response.status})`,
         },
         { status: response.status || 500 }
       )
     }
 
     // 成功時のレスポンス
+    if (!responseData.pdf_url) {
+      console.error('Invoice API response missing pdf_url:', responseData)
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'Invoice API did not return PDF URL',
+        },
+        { status: 500 }
+      )
+    }
+
     return NextResponse.json({
       success: true,
       pdf_url: responseData.pdf_url,
@@ -88,6 +133,7 @@ export async function POST(request: NextRequest) {
 
     // JSONパースエラー
     if (error instanceof SyntaxError) {
+      console.error('JSON parse error:', error)
       return NextResponse.json(
         {
           success: false,
@@ -99,10 +145,15 @@ export async function POST(request: NextRequest) {
 
     // その他のエラー
     console.error('Error creating invoice PDF:', error)
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error'
+    console.error('Error details:', {
+      message: errorMessage,
+      stack: error instanceof Error ? error.stack : undefined,
+    })
     return NextResponse.json(
       {
         success: false,
-        message: error instanceof Error ? error.message : 'Internal server error',
+        message: errorMessage,
       },
       { status: 500 }
     )

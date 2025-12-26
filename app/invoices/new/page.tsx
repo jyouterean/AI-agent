@@ -208,16 +208,32 @@ export default function NewInvoicePage() {
         body: JSON.stringify(invoiceData),
       })
 
-      const result = await res.json()
+      let result
+      try {
+        result = await res.json()
+      } catch (jsonError) {
+        console.error('Failed to parse response as JSON:', jsonError)
+        const text = await res.text()
+        console.error('Response text:', text)
+        alert(`PDF生成エラー: サーバーからの応答の解析に失敗しました（ステータス: ${res.status}）`)
+        return
+      }
 
       if (result.success && result.pdf_url) {
         setPdfUrl(result.pdf_url)
       } else {
-        alert(`PDF生成エラー: ${result.message || '請求書PDFの生成に失敗しました'}`)
+        const errorMessage = result.message || result.error || '請求書PDFの生成に失敗しました'
+        console.error('PDF generation error:', {
+          status: res.status,
+          result: result,
+          requestData: invoiceData,
+        })
+        alert(`PDF生成エラー: ${errorMessage}`)
       }
     } catch (error) {
       console.error('Error generating PDF:', error)
-      alert('請求書PDFの生成に失敗しました')
+      const errorMessage = error instanceof Error ? error.message : '請求書PDFの生成に失敗しました'
+      alert(`PDF生成エラー: ${errorMessage}`)
     } finally {
       setGenerating(false)
     }
