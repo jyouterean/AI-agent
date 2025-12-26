@@ -70,6 +70,28 @@ const toolSchemas = {
     databaseId: z.string().min(1),
     query: z.string().min(1),
   }),
+  create_task: z.object({
+    title: z.string().min(1),
+    description: z.string().optional(),
+    status: z.enum(['not_started', 'in_progress', 'completed', 'on_hold']).optional(),
+    priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+    dueDate: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+  }),
+  update_task: z.object({
+    id: z.string().min(1),
+    title: z.string().optional(),
+    description: z.string().optional(),
+    status: z.enum(['not_started', 'in_progress', 'completed', 'on_hold']).optional(),
+    priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+    dueDate: z.string().nullable().optional(),
+    tags: z.array(z.string()).optional(),
+  }),
+  search_task: z.object({
+    query: z.string().min(1).optional(),
+    status: z.enum(['not_started', 'in_progress', 'completed', 'on_hold']).optional(),
+    priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+  }),
 }
 
 // ツール定義を生成
@@ -238,6 +260,90 @@ function getTools(): AITool[] {
         },
       }
     )
+
+    // タスク管理データベースが設定されている場合、タスク管理ツールを追加
+    if (process.env.NOTION_TASKS_DATABASE_ID) {
+      tools.push(
+        {
+          type: 'function',
+          function: {
+            name: 'create_task',
+            description: '新しいタスクを作成します。タイトル、説明、ステータス、優先度、期限、タグを設定できます。',
+            parameters: {
+              type: 'object',
+              properties: {
+                title: { type: 'string', description: 'タスクのタイトル（必須）' },
+                description: { type: 'string', description: 'タスクの説明（任意）' },
+                status: {
+                  type: 'string',
+                  enum: ['not_started', 'in_progress', 'completed', 'on_hold'],
+                  description: 'ステータス（任意、デフォルト: not_started）',
+                },
+                priority: {
+                  type: 'string',
+                  enum: ['low', 'medium', 'high', 'urgent'],
+                  description: '優先度（任意、デフォルト: medium）',
+                },
+                dueDate: { type: 'string', description: '期限（YYYY-MM-DD形式、任意）' },
+                tags: { type: 'array', items: { type: 'string' }, description: 'タグ（任意）' },
+              },
+              required: ['title'],
+            },
+          },
+        },
+        {
+          type: 'function',
+          function: {
+            name: 'update_task',
+            description: '既存のタスクを更新します。タスクIDを指定して、タイトル、説明、ステータス、優先度、期限、タグを更新できます。',
+            parameters: {
+              type: 'object',
+              properties: {
+                id: { type: 'string', description: 'タスクID（必須）' },
+                title: { type: 'string', description: 'タスクのタイトル（任意）' },
+                description: { type: 'string', description: 'タスクの説明（任意）' },
+                status: {
+                  type: 'string',
+                  enum: ['not_started', 'in_progress', 'completed', 'on_hold'],
+                  description: 'ステータス（任意）',
+                },
+                priority: {
+                  type: 'string',
+                  enum: ['low', 'medium', 'high', 'urgent'],
+                  description: '優先度（任意）',
+                },
+                dueDate: { type: 'string', description: '期限（YYYY-MM-DD形式、任意、nullで削除）' },
+                tags: { type: 'array', items: { type: 'string' }, description: 'タグ（任意）' },
+              },
+              required: ['id'],
+            },
+          },
+        },
+        {
+          type: 'function',
+          function: {
+            name: 'search_task',
+            description: 'タスクを検索します。クエリ、ステータス、優先度でフィルタリングできます。',
+            parameters: {
+              type: 'object',
+              properties: {
+                query: { type: 'string', description: '検索クエリ（タイトルで検索、任意）' },
+                status: {
+                  type: 'string',
+                  enum: ['not_started', 'in_progress', 'completed', 'on_hold'],
+                  description: 'ステータスでフィルタリング（任意）',
+                },
+                priority: {
+                  type: 'string',
+                  enum: ['low', 'medium', 'high', 'urgent'],
+                  description: '優先度でフィルタリング（任意）',
+                },
+              },
+            },
+          },
+        }
+      )
+    }
   }
 
   return tools
@@ -285,6 +391,14 @@ export async function POST(request: NextRequest) {
       systemPrompt += `
 8. save_to_notion: Notionデータベースに情報を保存（取引、請求書、顧客情報など）
 9. search_notion: Notionデータベースから情報を検索`
+      
+      // タスク管理データベースが設定されている場合、タスク管理機能を追加
+      if (process.env.NOTION_TASKS_DATABASE_ID) {
+        systemPrompt += `
+10. create_task: 新しいタスクを作成（タイトル、説明、ステータス、優先度、期限、タグを設定可能）
+11. update_task: 既存のタスクを更新（ステータス変更、優先度変更、期限更新など）
+12. search_task: タスクを検索（クエリ、ステータス、優先度でフィルタリング可能）`
+      }
     }
 
     systemPrompt += `

@@ -15,6 +15,9 @@ const executeSchema = z.object({
     'update_transaction',
     'save_to_notion',
     'search_notion',
+    'create_task',
+    'update_task',
+    'search_task',
   ]),
   params: z.record(z.any()),
 })
@@ -298,6 +301,269 @@ export async function POST(request: NextRequest) {
               url: page.url,
               properties: page.properties,
             })),
+          },
+        })
+      }
+
+      case 'create_task': {
+        if (!process.env.NOTION_API_KEY || !process.env.NOTION_TASKS_DATABASE_ID) {
+          return NextResponse.json(
+            { error: 'Notion API key or Tasks Database ID is not configured' },
+            { status: 400 }
+          )
+        }
+
+        const taskSchema = z.object({
+          title: z.string().min(1),
+          description: z.string().optional(),
+          status: z.enum(['not_started', 'in_progress', 'completed', 'on_hold']).optional(),
+          priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+          dueDate: z.string().optional(),
+          tags: z.array(z.string()).optional(),
+        })
+
+        const data = taskSchema.parse(params)
+
+        const notionProvider = new NotionProvider({
+          apiKey: process.env.NOTION_API_KEY,
+          databaseId: process.env.NOTION_TASKS_DATABASE_ID,
+        })
+
+        const properties: Record<string, any> = {
+          Title: {
+            title: [
+              {
+                text: {
+                  content: data.title,
+                },
+              },
+            ],
+          },
+        }
+
+        if (data.description) {
+          properties.Description = {
+            rich_text: [
+              {
+                text: {
+                  content: data.description,
+                },
+              },
+            ],
+          }
+        }
+
+        if (data.status) {
+          properties.Status = {
+            select: {
+              name: data.status,
+            },
+          }
+        }
+
+        if (data.priority) {
+          properties.Priority = {
+            select: {
+              name: data.priority,
+            },
+          }
+        }
+
+        if (data.dueDate) {
+          properties['Due Date'] = {
+            date: {
+              start: data.dueDate,
+            },
+          }
+        }
+
+        if (data.tags && data.tags.length > 0) {
+          properties.Tags = {
+            multi_select: data.tags.map((tag) => ({ name: tag })),
+          }
+        }
+
+        const page = await notionProvider.createPage(process.env.NOTION_TASKS_DATABASE_ID, properties)
+        const pageUrl = `https://notion.so/${page.id.replace(/-/g, '')}`
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            id: page.id,
+            title: data.title,
+            url: pageUrl,
+          },
+        })
+      }
+
+      case 'update_task': {
+        if (!process.env.NOTION_API_KEY) {
+          return NextResponse.json({ error: 'Notion API key is not configured' }, { status: 400 })
+        }
+
+        const taskSchema = z.object({
+          id: z.string().min(1),
+          title: z.string().optional(),
+          description: z.string().optional(),
+          status: z.enum(['not_started', 'in_progress', 'completed', 'on_hold']).optional(),
+          priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+          dueDate: z.string().nullable().optional(),
+          tags: z.array(z.string()).optional(),
+        })
+
+        const data = taskSchema.parse(params)
+
+        const notionProvider = new NotionProvider({
+          apiKey: process.env.NOTION_API_KEY,
+        })
+
+        const properties: Record<string, any> = {}
+
+        if (data.title !== undefined) {
+          properties.Title = {
+            title: [
+              {
+                text: {
+                  content: data.title,
+                },
+              },
+            ],
+          }
+        }
+
+        if (data.description !== undefined) {
+          if (data.description) {
+            properties.Description = {
+              rich_text: [
+                {
+                  text: {
+                    content: data.description,
+                  },
+                },
+              ],
+            }
+          } else {
+            properties.Description = {
+              rich_text: [],
+            }
+          }
+        }
+
+        if (data.status !== undefined) {
+          properties.Status = {
+            select: {
+              name: data.status,
+            },
+          }
+        }
+
+        if (data.priority !== undefined) {
+          properties.Priority = {
+            select: {
+              name: data.priority,
+            },
+          }
+        }
+
+        if (data.dueDate !== undefined) {
+          if (data.dueDate) {
+            properties['Due Date'] = {
+              date: {
+                start: data.dueDate,
+              },
+            }
+          } else {
+            properties['Due Date'] = {
+              date: null,
+            }
+          }
+        }
+
+        if (data.tags !== undefined) {
+          properties.Tags = {
+            multi_select: data.tags.map((tag) => ({ name: tag })),
+          }
+        }
+
+        await notionProvider.updatePage(data.id, properties)
+
+        return NextResponse.json({ success: true, data: { id: data.id } })
+      }
+
+      case 'search_task': {
+        if (!process.env.NOTION_API_KEY || !process.env.NOTION_TASKS_DATABASE_ID) {
+          return NextResponse.json(
+            { error: 'Notion API key or Tasks Database ID is not configured' },
+            { status: 400 }
+          )
+        }
+
+        const searchSchema = z.object({
+          query: z.string().optional(),
+          status: z.enum(['not_started', 'in_progress', 'completed', 'on_hold']).optional(),
+          priority: z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+        })
+
+        const data = searchSchema.parse(params)
+
+        const notionProvider = new NotionProvider({
+          apiKey: process.env.NOTION_API_KEY,
+          databaseId: process.env.NOTION_TASKS_DATABASE_ID,
+        })
+
+        let filter: any = undefined
+        if (data.status || data.priority) {
+          filter = {
+            and: [
+              ...(data.status ? [{ property: 'Status', select: { equals: data.status } }] : []),
+              ...(data.priority ? [{ property: 'Priority', select: { equals: data.priority } }] : []),
+            ],
+          }
+        }
+
+        const results = await notionProvider.queryDatabase(
+          process.env.NOTION_TASKS_DATABASE_ID,
+          filter ? { filter } : undefined
+        )
+
+        // タスクデータを整形
+        interface TaskResult {
+          id: string
+          title: string
+          description: string
+          status: string
+          priority: string
+          dueDate: string | null
+          tags: string[]
+          url: string
+        }
+
+        let tasks: TaskResult[] = results.results.map((page: any) => {
+          const props = page.properties || {}
+          return {
+            id: page.id,
+            title: props.Title?.title?.[0]?.text?.content || '',
+            description: props.Description?.rich_text?.[0]?.text?.content || '',
+            status: props.Status?.select?.name || 'not_started',
+            priority: props.Priority?.select?.name || 'medium',
+            dueDate: props['Due Date']?.date?.start || null,
+            tags: props.Tags?.multi_select?.map((tag: any) => tag.name) || [],
+            url: `https://notion.so/${page.id.replace(/-/g, '')}`,
+          }
+        })
+
+        // クエリでタイトルをフィルタリング
+        if (data.query) {
+          tasks = tasks.filter((task: TaskResult) =>
+            task.title.toLowerCase().includes(data.query!.toLowerCase())
+          )
+        }
+
+        return NextResponse.json({
+          success: true,
+          data: {
+            results: tasks,
+            count: tasks.length,
           },
         })
       }

@@ -253,6 +253,25 @@ export default function AgentPage() {
           } else {
             successMessage += `\n\n該当する結果が見つかりませんでした。`
           }
+        } else if (action.functionName === 'create_task') {
+          if (result.data?.url) {
+            successMessage += `\n\nタスクURL: ${result.data.url}`
+          }
+        } else if (action.functionName === 'update_task') {
+          successMessage += `\n\nタスクを更新しました。`
+        } else if (action.functionName === 'search_task') {
+          const results = result.data?.results || []
+          if (results.length > 0) {
+            successMessage += `\n\n見つかったタスク: ${results.length}件`
+            results.slice(0, 5).forEach((task: any) => {
+              successMessage += `\n- ${task.title} (${task.status}) [${task.priority}]`
+              if (task.url) {
+                successMessage += `\n  ${task.url}`
+              }
+            })
+          } else {
+            successMessage += `\n\n該当するタスクが見つかりませんでした。`
+          }
         } else if (result.data?.id) {
           successMessage += ` ID: ${result.data.id}`
         }
@@ -319,6 +338,9 @@ export default function AgentPage() {
       save_to_notion: 'Notionに保存',
       search_notion: 'Notionを検索',
       'notion-sync': 'Notion同期',
+      create_task: 'タスクの作成',
+      update_task: 'タスクの更新',
+      search_task: 'タスクの検索',
     }
     return labels[functionName] || functionName
   }
@@ -344,6 +366,12 @@ export default function AgentPage() {
         return `Notionに保存: ${args.title} (データベースID: ${args.databaseId})`
       case 'search_notion':
         return `Notion検索: "${args.query}" (データベースID: ${args.databaseId})`
+      case 'create_task':
+        return `タスク作成: ${args.title}${args.status ? ` (${args.status})` : ''}${args.priority ? ` [${args.priority}]` : ''}`
+      case 'update_task':
+        return `タスク更新: ID=${args.id}${args.status ? ` -> ${args.status}` : ''}${args.priority ? ` [${args.priority}]` : ''}`
+      case 'search_task':
+        return `タスク検索: ${args.query ? `"${args.query}"` : ''}${args.status ? ` ステータス: ${args.status}` : ''}${args.priority ? ` 優先度: ${args.priority}` : ''}`
       default:
         return JSON.stringify(args)
     }
