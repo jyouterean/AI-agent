@@ -2,9 +2,15 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { formatCurrency } from '@/lib/utils'
+import dayjs from 'dayjs'
 import {
   BarChart,
   Bar,
+  LineChart,
+  Line,
+  PieChart,
+  Pie,
+  Cell,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -70,84 +76,64 @@ export default function DashboardPage() {
   const fetchDashboardData = useCallback(async () => {
     try {
       setLoading(true)
-      // TODO: 実際のAPIエンドポイントに置き換える
-      // const res = await fetch(`/api/dashboard/management-report?${new URLSearchParams(filterData)}`)
-      // const data = await res.json()
+      const params = new URLSearchParams({
+        targetMonth: filterData.targetMonth,
+        viewMode: viewMode,
+      })
+      const res = await fetch(`/api/dashboard/management-report?${params.toString()}`, { cache: 'no-store' })
       
-      // モックデータ
-      const mockKpiData: KPIData = {
-        revenue: { value: 15000000, budget: 12000000, difference: 3000000 },
-        grossProfit: { value: 10500000, budget: 8400000, difference: 2100000 },
-        operatingProfit: { value: 4500000, budget: 3600000, difference: 900000 },
-        netProfit: { value: 3150000, budget: 2520000, difference: 630000 },
-        grossProfitRate: { value: 0.7, budget: 0.7, difference: 0 },
-        operatingProfitRate: { value: 0.3, budget: 0.3, difference: 0 },
+      if (res.ok) {
+        const result = await res.json()
+        if (result.success && result.data) {
+          setKpiData(result.data.kpi)
+          setChartData(result.data.chart)
+          setTableData(result.data.table)
+        } else {
+          console.error('API returned error:', result)
+          // フォールバック: 空データを設定
+          setKpiData({
+            revenue: { value: 0, budget: 0, difference: 0 },
+            grossProfit: { value: 0, budget: 0, difference: 0 },
+            operatingProfit: { value: 0, budget: 0, difference: 0 },
+            netProfit: { value: 0, budget: 0, difference: 0 },
+            grossProfitRate: { value: 0, budget: 0, difference: 0 },
+            operatingProfitRate: { value: 0, budget: 0, difference: 0 },
+          })
+          setChartData([])
+          setTableData([])
+        }
+      } else {
+        console.error('Failed to fetch dashboard data:', res.status)
+        // フォールバック: 空データを設定
+        setKpiData({
+          revenue: { value: 0, budget: 0, difference: 0 },
+          grossProfit: { value: 0, budget: 0, difference: 0 },
+          operatingProfit: { value: 0, budget: 0, difference: 0 },
+          netProfit: { value: 0, budget: 0, difference: 0 },
+          grossProfitRate: { value: 0, budget: 0, difference: 0 },
+          operatingProfitRate: { value: 0, budget: 0, difference: 0 },
+        })
+        setChartData([])
+        setTableData([])
       }
-
-      const mockChartData: ChartData[] = [
-        { month: '2024/04', revenueBudget: 12000000, revenueActual: 15000000, operatingProfitBudget: 3600000, operatingProfitActual: 4500000 },
-        { month: '2024/05', revenueBudget: 13000000, revenueActual: 16000000, operatingProfitBudget: 3900000, operatingProfitActual: 4800000 },
-        { month: '2024/06', revenueBudget: 14000000, revenueActual: 17000000, operatingProfitBudget: 4200000, operatingProfitActual: 5100000 },
-      ]
-
-      const mockTableData: TableRow[] = [
-        {
-          accountName: '売上高',
-          months: [
-            { budget: 12000000, actual: 15000000, difference: 3000000 },
-            { budget: 13000000, actual: 16000000, difference: 3000000 },
-            { budget: 14000000, actual: 17000000, difference: 3000000 },
-          ],
-          cumulative: { budget: 39000000, actual: 48000000, difference: 9000000 },
-        },
-        {
-          accountName: '店舗売上高',
-          months: [
-            { budget: 10000000, actual: 12000000, difference: 2000000 },
-            { budget: 11000000, actual: 13000000, difference: 2000000 },
-            { budget: 12000000, actual: 14000000, difference: 2000000 },
-          ],
-          cumulative: { budget: 33000000, actual: 39000000, difference: 6000000 },
-        },
-        {
-          accountName: '売上原価',
-          months: [
-            { budget: 3600000, actual: 4500000, difference: -900000 },
-            { budget: 3900000, actual: 4800000, difference: -900000 },
-            { budget: 4200000, actual: 5100000, difference: -900000 },
-          ],
-          cumulative: { budget: 11700000, actual: 14400000, difference: -2700000 },
-        },
-        {
-          accountName: '人件費',
-          months: [
-            { budget: 2000000, actual: 2200000, difference: -200000 },
-            { budget: 2100000, actual: 2300000, difference: -200000 },
-            { budget: 2200000, actual: 2400000, difference: -200000 },
-          ],
-          cumulative: { budget: 6300000, actual: 6900000, difference: -600000 },
-        },
-        {
-          accountName: '営業利益',
-          months: [
-            { budget: 3600000, actual: 4500000, difference: 900000 },
-            { budget: 3900000, actual: 4800000, difference: 900000 },
-            { budget: 4200000, actual: 5100000, difference: 900000 },
-          ],
-          cumulative: { budget: 11700000, actual: 14400000, difference: 2700000 },
-        },
-      ]
-
-      setKpiData(mockKpiData)
-      setChartData(mockChartData)
-      setTableData(mockTableData)
     } catch (error) {
       console.error('Error fetching dashboard data:', error)
+      // フォールバック: 空データを設定
+      setKpiData({
+        revenue: { value: 0, budget: 0, difference: 0 },
+        grossProfit: { value: 0, budget: 0, difference: 0 },
+        operatingProfit: { value: 0, budget: 0, difference: 0 },
+        netProfit: { value: 0, budget: 0, difference: 0 },
+        grossProfitRate: { value: 0, budget: 0, difference: 0 },
+        operatingProfitRate: { value: 0, budget: 0, difference: 0 },
+      })
+      setChartData([])
+      setTableData([])
     } finally {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [filterData])
+  }, [filterData, viewMode])
 
   useEffect(() => {
     fetchDashboardData()
@@ -196,33 +182,33 @@ export default function DashboardPage() {
   const kpiCards = [
     {
       label: '売上高',
-      value: viewMode === 'monthly' ? kpiData.revenue.value : kpiData.revenue.value * 3,
-      budget: viewMode === 'monthly' ? kpiData.revenue.budget : kpiData.revenue.budget * 3,
-      difference: viewMode === 'monthly' ? kpiData.revenue.difference : kpiData.revenue.difference * 3,
+      value: kpiData.revenue.value,
+      budget: kpiData.revenue.budget,
+      difference: kpiData.revenue.difference,
       formatter: formatKPICurrency,
       isPercent: false,
     },
     {
       label: '売上総利益',
-      value: viewMode === 'monthly' ? kpiData.grossProfit.value : kpiData.grossProfit.value * 3,
-      budget: viewMode === 'monthly' ? kpiData.grossProfit.budget : kpiData.grossProfit.budget * 3,
-      difference: viewMode === 'monthly' ? kpiData.grossProfit.difference : kpiData.grossProfit.difference * 3,
+      value: kpiData.grossProfit.value,
+      budget: kpiData.grossProfit.budget,
+      difference: kpiData.grossProfit.difference,
       formatter: formatKPICurrency,
       isPercent: false,
     },
     {
       label: '営業利益',
-      value: viewMode === 'monthly' ? kpiData.operatingProfit.value : kpiData.operatingProfit.value * 3,
-      budget: viewMode === 'monthly' ? kpiData.operatingProfit.budget : kpiData.operatingProfit.budget * 3,
-      difference: viewMode === 'monthly' ? kpiData.operatingProfit.difference : kpiData.operatingProfit.difference * 3,
+      value: kpiData.operatingProfit.value,
+      budget: kpiData.operatingProfit.budget,
+      difference: kpiData.operatingProfit.difference,
       formatter: formatKPICurrency,
       isPercent: false,
     },
     {
       label: '当期純利益',
-      value: viewMode === 'monthly' ? kpiData.netProfit.value : kpiData.netProfit.value * 3,
-      budget: viewMode === 'monthly' ? kpiData.netProfit.budget : kpiData.netProfit.budget * 3,
-      difference: viewMode === 'monthly' ? kpiData.netProfit.difference : kpiData.netProfit.difference * 3,
+      value: kpiData.netProfit.value,
+      budget: kpiData.netProfit.budget,
+      difference: kpiData.netProfit.difference,
       formatter: formatKPICurrency,
       isPercent: false,
     },
@@ -395,19 +381,72 @@ export default function DashboardPage() {
               <button className="text-gray-500 hover:text-gray-700 text-sm">⚙️</button>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={400}>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis tickFormatter={(value) => `${(value / 10000).toFixed(0)}万`} />
-              <Tooltip formatter={(value: number | undefined) => value ? formatCurrency(value) : ''} />
-              <Legend />
-              <Bar dataKey="revenueBudget" fill={COLORS.budget} name="売上高（当初予算）" />
-              <Bar dataKey="revenueActual" fill={COLORS.actual} name="売上高（実績）" />
-              <Bar dataKey="operatingProfitBudget" fill={COLORS.budget} name="営業利益（当初予算）" />
-              <Bar dataKey="operatingProfitActual" fill={COLORS.actual} name="営業利益（実績）" />
-            </BarChart>
-          </ResponsiveContainer>
+          {chartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={400}>
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis tickFormatter={(value) => `${(value / 10000).toFixed(0)}万`} />
+                <Tooltip formatter={(value: number | undefined) => value ? formatCurrency(value) : ''} />
+                <Legend />
+                <Bar dataKey="revenueBudget" fill={COLORS.budget} name="売上高（当初予算）" />
+                <Bar dataKey="revenueActual" fill={COLORS.actual} name="売上高（実績）" />
+                <Bar dataKey="operatingProfitBudget" fill={COLORS.budget} name="営業利益（当初予算）" />
+                <Bar dataKey="operatingProfitActual" fill={COLORS.actual} name="営業利益（実績）" />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[400px] flex items-center justify-center text-gray-400">
+              データがありません
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 追加のグラフエリア */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* 売上高推移（折れ線グラフ） */}
+        <div className="bg-white p-6 rounded-lg shadow border">
+          <h2 className="text-lg font-bold mb-4">売上高推移</h2>
+          {chartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis tickFormatter={(value) => `${(value / 10000).toFixed(0)}万`} />
+                <Tooltip formatter={(value: number | undefined) => value ? formatCurrency(value) : ''} />
+                <Legend />
+                <Line type="monotone" dataKey="revenueBudget" stroke={COLORS.budget} strokeWidth={2} name="売上高（当初予算）" />
+                <Line type="monotone" dataKey="revenueActual" stroke={COLORS.actual} strokeWidth={2} name="売上高（実績）" />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-gray-400">
+              データがありません
+            </div>
+          )}
+        </div>
+
+        {/* 営業利益推移（折れ線グラフ） */}
+        <div className="bg-white p-6 rounded-lg shadow border">
+          <h2 className="text-lg font-bold mb-4">営業利益推移</h2>
+          {chartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis tickFormatter={(value) => `${(value / 10000).toFixed(0)}万`} />
+                <Tooltip formatter={(value: number | undefined) => value ? formatCurrency(value) : ''} />
+                <Legend />
+                <Line type="monotone" dataKey="operatingProfitBudget" stroke={COLORS.budget} strokeWidth={2} name="営業利益（当初予算）" />
+                <Line type="monotone" dataKey="operatingProfitActual" stroke={COLORS.actual} strokeWidth={2} name="営業利益（実績）" />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="h-[300px] flex items-center justify-center text-gray-400">
+              データがありません
+            </div>
+          )}
         </div>
       </div>
 
@@ -420,11 +459,15 @@ export default function DashboardPage() {
           <thead>
             <tr className="bg-gray-50 border-b">
               <th className="px-4 py-2 text-left font-medium border-r">勘定科目</th>
-              {['2024/04', '2024/05', '2024/06'].map((month, idx) => (
-                <th key={idx} colSpan={3} className="px-4 py-2 text-center font-medium border-r">
-                  {month}
-                </th>
-              ))}
+              {tableData.length > 0 && tableData[0].months.map((_, idx) => {
+                const [year, month] = filterData.targetMonth.split('/').map(Number)
+                const monthDate = dayjs().year(year).month(month - 1).subtract(2 - idx, 'month')
+                return (
+                  <th key={idx} colSpan={3} className="px-4 py-2 text-center font-medium border-r">
+                    {monthDate.format('YYYY/MM')}
+                  </th>
+                )
+              })}
               <th colSpan={3} className="px-4 py-2 text-center font-medium">
                 期首からの累計
               </th>
