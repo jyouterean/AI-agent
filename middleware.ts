@@ -1,11 +1,20 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
+// 認証チェックを一時的に無効化（開発用）
+// 本番環境では有効化してください
+const AUTH_ENABLED = false
+
 // 認証不要なパス
 const publicPaths = ['/login', '/api/auth/login']
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
+
+  // 認証が無効化されている場合はすべてのリクエストを通す
+  if (!AUTH_ENABLED) {
+    return NextResponse.next()
+  }
 
   // 公開パスの場合は認証チェックをスキップ
   if (publicPaths.some((path) => pathname.startsWith(path))) {

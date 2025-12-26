@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { logAudit } from '@/lib/audit'
+import { shouldSkipAuth } from '@/lib/auth-helper'
 import { z } from 'zod'
 
 const invoiceSchema = z.object({
@@ -32,9 +33,12 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser()
-    if (!user) {
-      return NextResponse.json({ error: '認証されていません' }, { status: 401 })
+    let user = null
+    if (!shouldSkipAuth()) {
+      user = await getCurrentUser()
+      if (!user) {
+        return NextResponse.json({ error: '認証されていません' }, { status: 401 })
+      }
     }
 
     const body = await request.json()
@@ -47,7 +51,7 @@ export async function POST(request: NextRequest) {
         subtotalYen: 0,
         taxYen: 0,
         totalYen: 0,
-        createdBy: user.id,
+        createdBy: user?.id || null,
       },
       include: {
         clients: true,
@@ -56,14 +60,17 @@ export async function POST(request: NextRequest) {
     })
 
     // 操作ログを記録
-    await logAudit({
-      action: 'create_invoice',
-      entityType: 'invoice',
-      entityId: invoice.id,
-      details: { clientId: invoice.clientId, status: invoice.status },
-      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
-      userAgent: request.headers.get('user-agent') || undefined,
-    })
+    if (user) {
+      await logAudit({
+        userId: user.id,
+        action: 'create_invoice',
+        entityType: 'invoice',
+        entityId: invoice.id,
+        details: { clientId: invoice.clientId, status: invoice.status },
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+      })
+    }
 
     return NextResponse.json(invoice, { status: 201 })
   } catch (error) {

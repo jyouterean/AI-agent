@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getCurrentUser } from '@/lib/auth'
 import { logAudit } from '@/lib/audit'
 import { hashPassword } from '@/lib/auth'
+import { shouldSkipAuth } from '@/lib/auth-helper'
 import { z } from 'zod'
 
 export const dynamic = 'force-dynamic'
@@ -17,12 +18,15 @@ const createUserSchema = z.object({
 // GET: 従業員一覧取得（管理者のみ）
 export async function GET(request: NextRequest) {
   try {
-    const user = await getCurrentUser()
-    if (!user) {
-      return NextResponse.json({ error: '認証されていません' }, { status: 401 })
-    }
-    if (user.role !== 'admin') {
-      return NextResponse.json({ error: '権限がありません' }, { status: 403 })
+    let user = null
+    if (!shouldSkipAuth()) {
+      user = await getCurrentUser()
+      if (!user) {
+        return NextResponse.json({ error: '認証されていません' }, { status: 401 })
+      }
+      if (user.role !== 'admin') {
+        return NextResponse.json({ error: '権限がありません' }, { status: 403 })
+      }
     }
 
     const users = await prisma.users.findMany({
@@ -51,12 +55,15 @@ export async function GET(request: NextRequest) {
 // POST: 従業員作成（管理者のみ）
 export async function POST(request: NextRequest) {
   try {
-    const user = await getCurrentUser()
-    if (!user) {
-      return NextResponse.json({ error: '認証されていません' }, { status: 401 })
-    }
-    if (user.role !== 'admin') {
-      return NextResponse.json({ error: '権限がありません' }, { status: 403 })
+    let user = null
+    if (!shouldSkipAuth()) {
+      user = await getCurrentUser()
+      if (!user) {
+        return NextResponse.json({ error: '認証されていません' }, { status: 401 })
+      }
+      if (user.role !== 'admin') {
+        return NextResponse.json({ error: '権限がありません' }, { status: 403 })
+      }
     }
 
     const body = await request.json()
@@ -82,7 +89,7 @@ export async function POST(request: NextRequest) {
         passwordHash,
         name: data.name,
         role: data.role || 'employee',
-        createdBy: user.id,
+        createdBy: user?.id || null,
       },
       select: {
         id: true,
@@ -95,14 +102,17 @@ export async function POST(request: NextRequest) {
     })
 
     // 操作ログを記録
-    await logAudit({
-      action: 'create_user',
-      entityType: 'user',
-      entityId: newUser.id,
-      details: { email: newUser.email, name: newUser.name, role: newUser.role },
-      ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
-      userAgent: request.headers.get('user-agent') || undefined,
-    })
+    if (user) {
+      await logAudit({
+        userId: user.id,
+        action: 'create_user',
+        entityType: 'user',
+        entityId: newUser.id,
+        details: { email: newUser.email, name: newUser.name, role: newUser.role },
+        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || undefined,
+        userAgent: request.headers.get('user-agent') || undefined,
+      })
+    }
 
     return NextResponse.json({ success: true, data: newUser })
   } catch (error) {
