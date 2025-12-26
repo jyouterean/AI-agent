@@ -27,6 +27,13 @@ export default function NewInvoicePage() {
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [invoiceNumber, setInvoiceNumber] = useState<string>('')
   const [items, setItems] = useState<InvoiceItem[]>([])
+  const [showClientForm, setShowClientForm] = useState(false)
+  const [clientFormData, setClientFormData] = useState({
+    name: '',
+    email: '',
+    address: '',
+    invoiceRegNo: '',
+  })
   const [formData, setFormData] = useState({
     clientId: '',
     issueDate: dayjs().format('YYYY-MM-DD'),
@@ -41,16 +48,17 @@ export default function NewInvoicePage() {
     tax_rate: '0.1',
   })
 
-  useEffect(() => {
-    const fetchClients = async () => {
-      try {
-        const res = await fetch('/api/clients')
-        const data = await res.json()
-        setClients(data)
-      } catch (error) {
-        console.error('Error fetching clients:', error)
-      }
+  const fetchClients = async () => {
+    try {
+      const res = await fetch('/api/clients')
+      const data = await res.json()
+      setClients(data)
+    } catch (error) {
+      console.error('Error fetching clients:', error)
     }
+  }
+
+  useEffect(() => {
     fetchClients()
 
     // 請求書番号を自動生成（例: INV-YYYYMMDD-001）
@@ -100,6 +108,41 @@ export default function NewInvoicePage() {
   }
 
   const totals = calculateTotals()
+
+  const handleCreateClient = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!clientFormData.name) {
+      alert('顧客名を入力してください')
+      return
+    }
+
+    try {
+      const res = await fetch('/api/clients', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: clientFormData.name,
+          email: clientFormData.email || undefined,
+          address: clientFormData.address || undefined,
+          invoiceRegNo: clientFormData.invoiceRegNo || undefined,
+        }),
+      })
+
+      if (res.ok) {
+        const newClient = await res.json()
+        setClients([...clients, newClient])
+        setFormData({ ...formData, clientId: newClient.id })
+        setShowClientForm(false)
+        setClientFormData({ name: '', email: '', address: '', invoiceRegNo: '' })
+      } else {
+        const error = await res.json()
+        alert(`エラー: ${error.error || '顧客の登録に失敗しました'}`)
+      }
+    } catch (error) {
+      console.error('Error creating client:', error)
+      alert('顧客の登録に失敗しました')
+    }
+  }
 
   const generatePDF = async () => {
     if (!formData.clientId) {
@@ -184,10 +227,105 @@ export default function NewInvoicePage() {
     <div>
       <h1 className="text-3xl font-bold mb-6">請求書を作成</h1>
 
+      {/* 顧客新規作成モーダル */}
+      {showClientForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">顧客を新規作成</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowClientForm(false)
+                  setClientFormData({ name: '', email: '', address: '', invoiceRegNo: '' })
+                }}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleCreateClient}>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    顧客名 <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={clientFormData.name}
+                    onChange={(e) => setClientFormData({ ...clientFormData, name: e.target.value })}
+                    className="w-full border rounded px-3 py-2"
+                    required
+                    placeholder="株式会社サンプル"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">メールアドレス</label>
+                  <input
+                    type="email"
+                    value={clientFormData.email}
+                    onChange={(e) => setClientFormData({ ...clientFormData, email: e.target.value })}
+                    className="w-full border rounded px-3 py-2"
+                    placeholder="example@company.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">住所</label>
+                  <textarea
+                    value={clientFormData.address}
+                    onChange={(e) => setClientFormData({ ...clientFormData, address: e.target.value })}
+                    className="w-full border rounded px-3 py-2"
+                    rows={3}
+                    placeholder="〒123-4567&#10;東京都新宿区..."
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">適格請求書発行事業者番号</label>
+                  <input
+                    type="text"
+                    value={clientFormData.invoiceRegNo}
+                    onChange={(e) => setClientFormData({ ...clientFormData, invoiceRegNo: e.target.value })}
+                    className="w-full border rounded px-3 py-2"
+                    placeholder="T1234567890123"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-4 mt-6">
+                <button
+                  type="submit"
+                  className="flex-1 bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                >
+                  作成
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowClientForm(false)
+                    setClientFormData({ name: '', email: '', address: '', invoiceRegNo: '' })
+                  }}
+                  className="flex-1 bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300"
+                >
+                  キャンセル
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white p-6 rounded-lg shadow max-w-4xl">
         <div className="space-y-4 mb-6">
           <div>
-            <label className="block text-sm font-medium mb-1">顧客 *</label>
+            <div className="flex justify-between items-center mb-1">
+              <label className="block text-sm font-medium">顧客 *</label>
+              <button
+                type="button"
+                onClick={() => setShowClientForm(true)}
+                className="text-sm text-blue-600 hover:text-blue-800 underline"
+              >
+                + 新規作成
+              </button>
+            </div>
             <select
               value={formData.clientId}
               onChange={(e) => setFormData({ ...formData, clientId: e.target.value })}
